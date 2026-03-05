@@ -1,6 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Product, Purchase, Sale, Dish, Language, InventoryAudit, Ingredient, ActivityLog, SupplierPayment } from './types';
+import {
+  Product, Purchase, Sale, Dish, Language, InventoryAudit, Ingredient, ActivityLog,
+  SupplierPayment, BreakfastDayMenu, DayOfWeek, WeeklyBreakfastMenus, BreakfastLog,
+  HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient
+} from './types';
+
+const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+const emptyDayMenu = (): BreakfastDayMenu => ({ ingredients: [], pricePerGuest: 0 });
+
+const defaultWeeklyMenus = (): WeeklyBreakfastMenus => ({
+  monday: emptyDayMenu(), tuesday: emptyDayMenu(), wednesday: emptyDayMenu(),
+  thursday: emptyDayMenu(), friday: emptyDayMenu(), saturday: emptyDayMenu(), sunday: emptyDayMenu(),
+});
 
 interface AppState {
   language: Language;
@@ -15,6 +28,17 @@ interface AppState {
   inventoryAudits: InventoryAudit[];
   activityLogs: ActivityLog[];
   supplierPayments: SupplierPayment[];
+  // Breakfast
+  breakfastMenus: WeeklyBreakfastMenus;
+  breakfastLogs: BreakfastLog[];
+  // Housekeeping
+  housekeepingBOM: HousekeepingBOMItem[];
+  rooms: Room[];
+  housekeepingLogs: HousekeepingLog[];
+  // Direct consumption (inventory link)
+  directConsumptions: DirectConsumption[];
+
+  // Auth & settings
   setLanguage: (lang: Language) => void;
   login: (inputPassword: string) => boolean;
   logout: () => void;
@@ -22,22 +46,39 @@ interface AppState {
   updatePassword: (current: string, newPass: string) => boolean;
   addLog: (action: string, details: string) => void;
   clearLogs: () => void;
+  // Products
   updateProductMinBalance: (id: string, minBalance: number) => void;
-  addPurchase: (purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string, unit: string, category: string, code?: string, supplier?: string }) => void;
-  editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string, unit: string, category: string, code?: string, supplier?: string }) => void;
-  bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string, unit: string, category: string, code?: string, supplier?: string }>) => void;
-  deletePurchase: (id: string) => void;
-  addSale: (sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
-  editSale: (id: string, sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
-  deleteSale: (id: string) => void;
   addProduct: (product: Product) => void;
+  // Dishes
   addDish: (dish: Dish) => void;
   editDish: (id: string, dish: Dish) => void;
   deleteDish: (id: string) => void;
+  // Purchases
+  addPurchase: (purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }) => void;
+  editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }) => void;
+  bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }>) => void;
+  deletePurchase: (id: string) => void;
+  // Sales
+  addSale: (sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
+  editSale: (id: string, sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
+  deleteSale: (id: string) => void;
+  // Inventory
   saveInventoryAudit: (audit: Omit<InventoryAudit, 'id'>) => void;
+  // Supplier payments
   addSupplierPayment: (payment: Omit<SupplierPayment, 'id'>) => void;
   editSupplierPayment: (id: string, payment: Omit<SupplierPayment, 'id'>) => void;
   deleteSupplierPayment: (id: string) => void;
+  // Breakfast
+  saveBreakfastMenu: (day: DayOfWeek, menu: BreakfastDayMenu) => void;
+  logBreakfast: (roomNumber: string, guestCount: number) => void;
+  deleteBreakfastLog: (id: string) => void;
+  // Housekeeping
+  saveHousekeepingBOM: (items: HousekeepingBOMItem[]) => void;
+  addRoom: (room: Omit<Room, 'id'>) => void;
+  deleteRoom: (id: string) => void;
+  updateRoomStatus: (id: string, status: RoomStatus, guestCount?: number) => void;
+  deleteHousekeepingLog: (id: string) => void;
+  // System
   clearAllData: () => void;
   restoreData: (data: Partial<AppState>) => void;
   executeChefsGrandOpeningTest: () => void;
@@ -45,10 +86,15 @@ interface AppState {
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// Standard Yield Formula: Net Quantity / (1 - LossPercentage / 100)
 const getGrossQuantity = (netQuantity: number, lossPercentage: number = 0): number => {
-  const validLoss = Math.min(Math.max(lossPercentage, 0), 99); // Prevent division by zero
+  const validLoss = Math.min(Math.max(lossPercentage, 0), 99);
   return netQuantity / (1 - (validLoss / 100));
+};
+
+const getDayOfWeek = (dateStr: string): DayOfWeek => {
+  const d = new Date(dateStr);
+  const jsDay = d.getDay(); // 0=Sunday
+  return DAYS[jsDay === 0 ? 6 : jsDay - 1];
 };
 
 export const useAppStore = create<AppState>()(
@@ -66,6 +112,12 @@ export const useAppStore = create<AppState>()(
       inventoryAudits: [],
       activityLogs: [],
       supplierPayments: [],
+      breakfastMenus: defaultWeeklyMenus(),
+      breakfastLogs: [],
+      housekeepingBOM: [],
+      rooms: [],
+      housekeepingLogs: [],
+      directConsumptions: [],
 
       setLanguage: (lang) => set({ language: lang }),
 
@@ -101,13 +153,7 @@ export const useAppStore = create<AppState>()(
 
       addLog: (action, details) => set((state) => ({
         activityLogs: [
-          {
-            id: generateId(),
-            timestamp: new Date().toISOString(),
-            action,
-            details,
-            user: state.username
-          },
+          { id: generateId(), timestamp: new Date().toISOString(), action, details, user: state.username },
           ...state.activityLogs
         ]
       })),
@@ -116,9 +162,7 @@ export const useAppStore = create<AppState>()(
 
       updateProductMinBalance: (id, minBalance) => {
         const product = get().products.find(p => p.id === id);
-        set((state) => ({
-          products: state.products.map(p => p.id === id ? { ...p, minBalance } : p)
-        }));
+        set((state) => ({ products: state.products.map(p => p.id === id ? { ...p, minBalance } : p) }));
         get().addLog('Min Balance Updated', `${product?.name || id} set to ${minBalance}`);
       },
 
@@ -151,27 +195,16 @@ export const useAppStore = create<AppState>()(
       },
 
       addSale: (saleData) => {
-        const state = get();
-        const dish = state.dishes.find(d => d.id === saleData.dishId);
+        const dish = get().dishes.find(d => d.id === saleData.dishId);
         const totalRevenue = dish ? dish.salePrice * saleData.quantity : 0;
-
-        const newSale: Sale = {
-          id: generateId(),
-          ...saleData,
-          totalRevenue,
-        };
-
-        set((state) => ({ sales: [...state.sales, newSale] }));
+        set((state) => ({ sales: [...state.sales, { id: generateId(), ...saleData, totalRevenue }] }));
         get().addLog('Sale Added', `${dish?.name || 'Unknown'} x${saleData.quantity}`);
       },
 
       editSale: (id, saleData) => {
         const dish = get().dishes.find(d => d.id === saleData.dishId);
         const totalRevenue = dish ? dish.salePrice * saleData.quantity : 0;
-        
-        set((state) => ({
-          sales: state.sales.map(s => s.id === id ? { ...s, ...saleData, totalRevenue } : s)
-        }));
+        set((state) => ({ sales: state.sales.map(s => s.id === id ? { ...s, ...saleData, totalRevenue } : s) }));
         get().addLog('Sale Edited', `${dish?.name || 'Unknown'} x${saleData.quantity}`);
       },
 
@@ -184,85 +217,37 @@ export const useAppStore = create<AppState>()(
 
       addPurchase: (purchaseData) => {
         const state = get();
-        let existingProduct = state.products.find(
-          p => p.name.toLowerCase() === purchaseData.productName.toLowerCase()
-        );
-
+        let existingProduct = state.products.find(p => p.name.toLowerCase() === purchaseData.productName.toLowerCase());
         let newProducts = [...state.products];
         let productId = existingProduct?.id;
-
         if (!existingProduct) {
           productId = generateId();
-          newProducts.push({
-            id: productId,
-            code: purchaseData.code,
-            name: purchaseData.productName,
-            unit: purchaseData.unit,
-            category: purchaseData.category,
-            minBalance: 0,
-          });
+          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0 });
         } else if (purchaseData.code && !existingProduct.code) {
           existingProduct.code = purchaseData.code;
         }
-
-        const newPurchase: Purchase = {
-          id: generateId(),
-          date: purchaseData.date,
-          productId: productId!,
-          quantity: purchaseData.quantity,
-          price: purchaseData.price,
-          total: purchaseData.quantity * purchaseData.price,
-          supplier: purchaseData.supplier || '',
-        };
-
         set({
           products: newProducts,
-          purchases: [...state.purchases, newPurchase],
+          purchases: [...state.purchases, { id: generateId(), date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '' }],
         });
-        
         get().addLog('Purchase Added', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
 
       editPurchase: (id, purchaseData) => {
         const state = get();
-        let existingProduct = state.products.find(
-          p => p.name.toLowerCase() === purchaseData.productName.toLowerCase()
-        );
-
+        let existingProduct = state.products.find(p => p.name.toLowerCase() === purchaseData.productName.toLowerCase());
         let newProducts = [...state.products];
         let productId = existingProduct?.id;
-
         if (!existingProduct) {
           productId = generateId();
-          newProducts.push({
-            id: productId,
-            code: purchaseData.code,
-            name: purchaseData.productName,
-            unit: purchaseData.unit,
-            category: purchaseData.category,
-            minBalance: 0,
-          });
+          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0 });
         } else if (purchaseData.code && !existingProduct.code) {
           existingProduct.code = purchaseData.code;
         }
-
-        const updatedPurchases = state.purchases.map(p => 
-          p.id === id ? {
-            ...p,
-            date: purchaseData.date,
-            productId: productId!,
-            quantity: purchaseData.quantity,
-            price: purchaseData.price,
-            total: purchaseData.quantity * purchaseData.price,
-            supplier: purchaseData.supplier || '',
-          } : p
-        );
-
         set({
           products: newProducts,
-          purchases: updatedPurchases,
+          purchases: state.purchases.map(p => p.id === id ? { ...p, date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '' } : p),
         });
-
         get().addLog('Purchase Edited', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
 
@@ -270,107 +255,174 @@ export const useAppStore = create<AppState>()(
         const state = get();
         let newProducts = [...state.products];
         let newPurchases = [...state.purchases];
-
-        bulkPurchases.forEach(purchaseData => {
-          let existingProduct = newProducts.find(
-            p => p.name.toLowerCase() === purchaseData.productName.toLowerCase()
-          );
-
-          let productId = existingProduct?.id;
-
-          if (!existingProduct) {
-            productId = generateId();
-            newProducts.push({
-              id: productId,
-              code: purchaseData.code,
-              name: purchaseData.productName,
-              unit: purchaseData.unit,
-              category: purchaseData.category || 'General',
-              minBalance: 0,
-            });
-          } else if (purchaseData.code && !existingProduct.code) {
-             existingProduct.code = purchaseData.code;
-          }
-
-          newPurchases.push({
-            id: generateId(),
-            date: purchaseData.date,
-            productId: productId!,
-            quantity: purchaseData.quantity,
-            price: purchaseData.price,
-            total: purchaseData.quantity * purchaseData.price,
-            supplier: purchaseData.supplier || '',
-          });
+        bulkPurchases.forEach(pd => {
+          let ep = newProducts.find(p => p.name.toLowerCase() === pd.productName.toLowerCase());
+          let pid = ep?.id;
+          if (!ep) {
+            pid = generateId();
+            newProducts.push({ id: pid, code: pd.code, name: pd.productName, unit: pd.unit, category: pd.category || 'General', minBalance: 0 });
+          } else if (pd.code && !ep.code) { ep.code = pd.code; }
+          newPurchases.push({ id: generateId(), date: pd.date, productId: pid!, quantity: pd.quantity, price: pd.price, total: pd.quantity * pd.price, supplier: pd.supplier || '' });
         });
-
-        set({
-          products: newProducts,
-          purchases: newPurchases,
-        });
-
+        set({ products: newProducts, purchases: newPurchases });
         get().addLog('Bulk Import', `${bulkPurchases.length} purchases imported from Excel`);
       },
 
       saveInventoryAudit: (audit) => {
         const state = get();
-        const existingIndex = state.inventoryAudits.findIndex(a => a.date === audit.date);
+        const idx = state.inventoryAudits.findIndex(a => a.date === audit.date);
         const newAudits = [...state.inventoryAudits];
-        
-        if (existingIndex >= 0) {
-          newAudits[existingIndex] = { ...newAudits[existingIndex], balances: audit.balances };
-        } else {
-          newAudits.push({ id: generateId(), ...audit });
-        }
-        
+        if (idx >= 0) { newAudits[idx] = { ...newAudits[idx], balances: audit.balances }; }
+        else { newAudits.push({ id: generateId(), ...audit }); }
         set({ inventoryAudits: newAudits });
         get().addLog('Inventory Saved', `Audit for date ${audit.date}`);
       },
 
-      // === SUPPLIER PAYMENTS CRUD (NEW) ===
-      addSupplierPayment: (paymentData) => {
-        const newPayment: SupplierPayment = {
-          id: generateId(),
-          ...paymentData,
-        };
-        set((state) => ({
-          supplierPayments: [...state.supplierPayments, newPayment],
-        }));
-        get().addLog('Payment Added', `${paymentData.supplier}: ${paymentData.amount}`);
+      // === SUPPLIER PAYMENTS ===
+      addSupplierPayment: (data) => {
+        set((state) => ({ supplierPayments: [...state.supplierPayments, { id: generateId(), ...data }] }));
+        get().addLog('Payment Added', `${data.supplier}: ${data.amount}`);
       },
-
-      editSupplierPayment: (id, paymentData) => {
-        set((state) => ({
-          supplierPayments: state.supplierPayments.map(p =>
-            p.id === id ? { ...p, ...paymentData } : p
-          ),
-        }));
-        get().addLog('Payment Edited', `${paymentData.supplier}: ${paymentData.amount}`);
+      editSupplierPayment: (id, data) => {
+        set((state) => ({ supplierPayments: state.supplierPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
+        get().addLog('Payment Edited', `${data.supplier}: ${data.amount}`);
       },
-
       deleteSupplierPayment: (id) => {
-        const payment = get().supplierPayments.find(p => p.id === id);
-        set((state) => ({
-          supplierPayments: state.supplierPayments.filter(p => p.id !== id),
-        }));
-        get().addLog('Payment Deleted', `${payment?.supplier || 'Unknown'}: ${payment?.amount || 0}`);
+        const p = get().supplierPayments.find(x => x.id === id);
+        set((state) => ({ supplierPayments: state.supplierPayments.filter(x => x.id !== id) }));
+        get().addLog('Payment Deleted', `${p?.supplier || 'Unknown'}`);
       },
 
+      // === BREAKFAST ===
+      saveBreakfastMenu: (day, menu) => {
+        set((state) => ({ breakfastMenus: { ...state.breakfastMenus, [day]: menu } }));
+        get().addLog('Breakfast Menu Saved', day);
+      },
+
+      logBreakfast: (roomNumber, guestCount) => {
+        const state = get();
+        const today = new Date().toISOString().split('T')[0];
+        const dayOfWeek = getDayOfWeek(today);
+        const menu = state.breakfastMenus[dayOfWeek];
+        const logId = generateId();
+
+        // Create direct consumptions
+        const newConsumptions: DirectConsumption[] = [];
+        if (menu && menu.ingredients.length > 0) {
+          menu.ingredients.forEach(ing => {
+            const gross = getGrossQuantity(ing.quantity, ing.lossPercentage || 0);
+            newConsumptions.push({
+              id: generateId(),
+              date: today,
+              productId: ing.productId,
+              quantity: gross * guestCount,
+              source: 'breakfast',
+              reference: logId,
+            });
+          });
+        }
+
+        const newLog: BreakfastLog = { id: logId, date: today, roomNumber, guestCount, dayOfWeek };
+
+        set((state) => ({
+          breakfastLogs: [...state.breakfastLogs, newLog],
+          directConsumptions: [...state.directConsumptions, ...newConsumptions],
+        }));
+        get().addLog('Breakfast Served', `Room ${roomNumber}, ${guestCount} guests (${dayOfWeek})`);
+      },
+
+      deleteBreakfastLog: (id) => {
+        set((state) => ({
+          breakfastLogs: state.breakfastLogs.filter(l => l.id !== id),
+          directConsumptions: state.directConsumptions.filter(dc => dc.reference !== id),
+        }));
+        get().addLog('Breakfast Log Deleted', id);
+      },
+
+      // === HOUSEKEEPING ===
+      saveHousekeepingBOM: (items) => {
+        set({ housekeepingBOM: items });
+        get().addLog('Housekeeping BOM Saved', `${items.length} items`);
+      },
+
+      addRoom: (roomData) => {
+        set((state) => ({ rooms: [...state.rooms, { id: generateId(), ...roomData }] }));
+        get().addLog('Room Added', `Room ${roomData.number}`);
+      },
+
+      deleteRoom: (id) => {
+        const room = get().rooms.find(r => r.id === id);
+        set((state) => ({ rooms: state.rooms.filter(r => r.id !== id) }));
+        get().addLog('Room Deleted', `Room ${room?.number || id}`);
+      },
+
+      updateRoomStatus: (id, status, guestCount) => {
+        const state = get();
+        const room = state.rooms.find(r => r.id === id);
+        if (!room) return;
+
+        const updatedRoom = { ...room, status, guestCount: guestCount !== undefined ? guestCount : room.guestCount };
+
+        // When marking as 'clean', consume housekeeping materials
+        const newConsumptions: DirectConsumption[] = [];
+        let logId = '';
+        if (status === 'clean' && updatedRoom.guestCount > 0 && state.housekeepingBOM.length > 0) {
+          logId = generateId();
+          state.housekeepingBOM.forEach(item => {
+            newConsumptions.push({
+              id: generateId(),
+              date: new Date().toISOString().split('T')[0],
+              productId: item.productId,
+              quantity: item.quantity * updatedRoom.guestCount,
+              source: 'housekeeping',
+              reference: logId,
+            });
+          });
+        }
+
+        const newHKLog: HousekeepingLog | null = status === 'clean' && updatedRoom.guestCount > 0 ? {
+          id: logId || generateId(),
+          date: new Date().toISOString().split('T')[0],
+          roomId: id,
+          roomNumber: room.number,
+          guestCount: updatedRoom.guestCount,
+        } : null;
+
+        set((state) => ({
+          rooms: state.rooms.map(r => r.id === id ? updatedRoom : r),
+          directConsumptions: [...state.directConsumptions, ...newConsumptions],
+          housekeepingLogs: newHKLog ? [...state.housekeepingLogs, newHKLog] : state.housekeepingLogs,
+        }));
+
+        // Reset guest count after cleaning
+        if (status === 'clean') {
+          set((state) => ({ rooms: state.rooms.map(r => r.id === id ? { ...r, guestCount: 0 } : r) }));
+        }
+
+        get().addLog('Room Status', `Room ${room.number} → ${status}${guestCount ? ` (${guestCount} guests)` : ''}`);
+      },
+
+      deleteHousekeepingLog: (id) => {
+        set((state) => ({
+          housekeepingLogs: state.housekeepingLogs.filter(l => l.id !== id),
+          directConsumptions: state.directConsumptions.filter(dc => dc.reference !== id),
+        }));
+        get().addLog('HK Log Deleted', id);
+      },
+
+      // === SYSTEM ===
       clearAllData: () => {
         set({
-          products: [],
-          purchases: [],
-          sales: [],
-          dishes: [],
-          inventoryAudits: [],
-          activityLogs: [],
-          supplierPayments: [],
+          products: [], purchases: [], sales: [], dishes: [],
+          inventoryAudits: [], activityLogs: [], supplierPayments: [],
+          breakfastMenus: defaultWeeklyMenus(), breakfastLogs: [],
+          housekeepingBOM: [], rooms: [], housekeepingLogs: [], directConsumptions: [],
         });
         get().addLog('System Wipe', 'All system data was completely wiped');
       },
 
-      // Restores data from a backup JSON payload
-      restoreData: (parsedData) => {
-        set((state) => ({
+      restoreData: (parsedData: any) => {
+        set((state: any) => ({
           ...state,
           products: parsedData.products || state.products,
           purchases: parsedData.purchases || state.purchases,
@@ -378,126 +430,63 @@ export const useAppStore = create<AppState>()(
           dishes: parsedData.dishes || state.dishes,
           inventoryAudits: parsedData.inventoryAudits || state.inventoryAudits,
           activityLogs: parsedData.activityLogs || state.activityLogs,
-          supplierPayments: (parsedData as any).supplierPayments || state.supplierPayments,
+          supplierPayments: parsedData.supplierPayments || state.supplierPayments,
+          breakfastMenus: parsedData.breakfastMenus || state.breakfastMenus,
+          breakfastLogs: parsedData.breakfastLogs || state.breakfastLogs,
+          housekeepingBOM: parsedData.housekeepingBOM || state.housekeepingBOM,
+          rooms: parsedData.rooms || state.rooms,
+          housekeepingLogs: parsedData.housekeepingLogs || state.housekeepingLogs,
+          directConsumptions: parsedData.directConsumptions || state.directConsumptions,
         }));
         get().addLog('System Restore', 'Database restored successfully from backup file');
       },
 
-      // THE CHEF'S GRAND OPENING TEST
       executeChefsGrandOpeningTest: () => {
         const today = new Date().toISOString().split('T')[0];
+        set({ products: [], purchases: [], sales: [], dishes: [], inventoryAudits: [], activityLogs: [], supplierPayments: [], breakfastLogs: [], housekeepingLogs: [], directConsumptions: [] });
 
-        // Wipe clean first
-        set({ products: [], purchases: [], sales: [], dishes: [], inventoryAudits: [], activityLogs: [], supplierPayments: [] });
-
-        // Step 1: 100 High-Quality Ingredients
-        const meats = ['Ribeye', 'Tenderloin', 'Lamb Chops', 'Pork Belly', 'Chicken Breast', 'Duck Breast', 'Veal Chop', 'Wagyu Beef', 'Quail', 'Venison'];
-        const fish = ['Sea Bass', 'Salmon', 'Tuna', 'Shrimp', 'Scallops', 'Octopus', 'Squid', 'Lobster', 'Crab', 'Caviar'];
-        const veg = ['Tomato', 'Cucumber', 'Onion', 'Mushroom', 'Eggplant', 'Zucchini', 'Red Bell Pepper', 'Green Bell Pepper', 'Potato', 'Carrot', 'Broccoli', 'Cauliflower', 'Asparagus', 'Spinach', 'Garlic', 'Cherry Tomato', 'Artichoke', 'Sweet Potato', 'Leek', 'Celery'];
-        const herbs = ['Basil', 'Parsley', 'Tarragon', 'Mint', 'Coriander', 'Dill', 'Rosemary', 'Thyme', 'Oregano', 'Lemongrass'];
-        const cheese = ['Sulguni', 'Imeretian', 'Gouda', 'Parmesan', 'Roquefort', 'Cheddar', 'Mozzarella', 'Camembert', 'Brie', 'Feta'];
-        const spices = ['Saffron', 'Black Pepper', 'Salt', 'Paprika', 'Cumin', 'Turmeric', 'Cinnamon', 'Nutmeg', 'Cardamom', 'Chili Powder'];
-        const dry = ['Truffle Oil', 'Olive Oil', 'Butter', 'Cream 18%', 'Milk', 'Eggs', 'Flour', 'Sugar', 'Rice', 'Pasta', 'Honey', 'Balsamic Vinegar', 'Soy Sauce', 'Walnuts', 'Almonds', 'Pine Nuts', 'Lemon', 'Orange', 'Apple', 'Truffles', 'Coffee Beans', 'Vanilla Extract', 'Mustard', 'White Wine', 'Red Wine', 'Chicken Stock', 'Beef Stock', 'Fish Stock', 'Yeast', 'Baking Powder'];
-
-        const suppliers = ['GeoFresh Ltd', 'Tbilisi Market', 'Black Sea Foods', 'Kakheti Farms', 'EuroImport'];
+        const meats = ['Ribeye','Tenderloin','Lamb Chops','Pork Belly','Chicken Breast','Duck Breast','Veal Chop','Wagyu Beef','Quail','Venison'];
+        const fish = ['Sea Bass','Salmon','Tuna','Shrimp','Scallops','Octopus','Squid','Lobster','Crab','Caviar'];
+        const veg = ['Tomato','Cucumber','Onion','Mushroom','Eggplant','Zucchini','Red Bell Pepper','Green Bell Pepper','Potato','Carrot','Broccoli','Cauliflower','Asparagus','Spinach','Garlic','Cherry Tomato','Artichoke','Sweet Potato','Leek','Celery'];
+        const herbs = ['Basil','Parsley','Tarragon','Mint','Coriander','Dill','Rosemary','Thyme','Oregano','Lemongrass'];
+        const cheese = ['Sulguni','Imeretian','Gouda','Parmesan','Roquefort','Cheddar','Mozzarella','Camembert','Brie','Feta'];
+        const spices = ['Saffron','Black Pepper','Salt','Paprika','Cumin','Turmeric','Cinnamon','Nutmeg','Cardamom','Chili Powder'];
+        const dry = ['Truffle Oil','Olive Oil','Butter','Cream 18%','Milk','Eggs','Flour','Sugar','Rice','Pasta','Honey','Balsamic Vinegar','Soy Sauce','Walnuts','Almonds','Pine Nuts','Lemon','Orange','Apple','Truffles','Coffee Beans','Vanilla Extract','Mustard','White Wine','Red Wine','Chicken Stock','Beef Stock','Fish Stock','Yeast','Baking Powder'];
+        const suppliers = ['GeoFresh Ltd','Tbilisi Market','Black Sea Foods','Kakheti Farms','EuroImport'];
 
         const rawItems = [
-          ...meats.map(n => ({ n, c: 'Meat/Fish', p: Math.floor(Math.random() * 20) + 25 })),
-          ...fish.map(n => ({ n, c: 'Meat/Fish', p: Math.floor(Math.random() * 20) + 25 })),
-          ...veg.map(n => ({ n, c: 'Produce', p: Math.floor(Math.random() * 8) + 3 })),
-          ...herbs.map(n => ({ n, c: 'Produce', p: Math.floor(Math.random() * 10) + 5 })),
-          ...cheese.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random() * 15) + 15 })),
-          ...spices.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random() * 45) + 5 })),
-          ...dry.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random() * 20) + 5 }))
+          ...meats.map(n => ({ n, c: 'Meat/Fish', p: Math.floor(Math.random()*20)+25 })),
+          ...fish.map(n => ({ n, c: 'Meat/Fish', p: Math.floor(Math.random()*20)+25 })),
+          ...veg.map(n => ({ n, c: 'Produce', p: Math.floor(Math.random()*8)+3 })),
+          ...herbs.map(n => ({ n, c: 'Produce', p: Math.floor(Math.random()*10)+5 })),
+          ...cheese.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random()*15)+15 })),
+          ...spices.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random()*45)+5 })),
+          ...dry.map(n => ({ n, c: 'Dry/Dairy', p: Math.floor(Math.random()*20)+5 }))
         ];
 
-        const generatedProducts: Product[] = [];
-        const generatedPurchases: Purchase[] = [];
-
+        const gP: Product[] = []; const gPu: Purchase[] = [];
         rawItems.forEach((item, idx) => {
           const pId = `PROD-CHEF-${idx}`;
-          const u = (item.n === 'Eggs' || item.n === 'Caviar' || item.n === 'Saffron') ? 'pack' : (item.n.includes('Oil') || item.n.includes('Wine') || item.n.includes('Stock') || item.n === 'Milk') ? 'liter' : 'kg';
-          
-          generatedProducts.push({
-            id: pId,
-            code: `C${1000 + idx}`,
-            name: item.n,
-            unit: u,
-            category: item.c,
-            minBalance: 5
-          });
-
-          generatedPurchases.push({
-            id: `PUR-CHEF-${idx}`,
-            date: today,
-            productId: pId,
-            quantity: 100,
-            price: item.p,
-            total: 100 * item.p,
-            supplier: suppliers[idx % suppliers.length],
-          });
+          const u = (item.n==='Eggs'||item.n==='Caviar'||item.n==='Saffron')?'pack':(item.n.includes('Oil')||item.n.includes('Wine')||item.n.includes('Stock')||item.n==='Milk')?'liter':'kg';
+          gP.push({ id: pId, code: `C${1000+idx}`, name: item.n, unit: u, category: item.c, minBalance: 5 });
+          gPu.push({ id: `PUR-CHEF-${idx}`, date: today, productId: pId, quantity: 100, price: item.p, total: 100*item.p, supplier: suppliers[idx%suppliers.length] });
         });
 
-        // Step 2: 30 Signature Dishes
-        const adjectives = ["Truffle-infused", "Pan-seared", "Roasted", "Confit", "Grilled", "Braised", "Smoked", "Poached", "Caramelized", "Spicy"];
-        const nouns = ["Medley", "Delight", "Fusion", "Symphony", "Trio", "Essence", "Plate", "Bowl", "Experience", "Creation"];
-        const generatedDishes: Dish[] = [];
-
-        for(let i=0; i<30; i++) {
-          const numIngredients = Math.floor(Math.random() * 5) + 4;
-          const shuffledProducts = [...generatedProducts].sort(() => 0.5 - Math.random());
-          const selectedProducts = shuffledProducts.slice(0, numIngredients);
-          
-          const ingredients: Ingredient[] = selectedProducts.map(sp => {
-            let loss = 5;
-            if (sp.category === 'Meat/Fish') loss = 25;
-            if (sp.category === 'Produce') loss = Math.floor(Math.random() * 6) + 15;
-
-            return {
-              productId: sp.id,
-              quantity: Number((Math.random() * 0.2 + 0.05).toFixed(3)),
-              lossPercentage: loss
-            }
-          });
-
-          const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-          const noun = nouns[Math.floor(Math.random() * nouns.length)];
-          const mainIngredient = selectedProducts[0].name;
-
-          generatedDishes.push({
-            id: `DISH-CHEF-${i}`,
-            name: `${adj} ${mainIngredient} ${noun}`,
-            category: 'Chef Signature',
-            salePrice: Math.floor(Math.random() * 66) + 15,
-            ingredients
-          });
+        const adj = ["Truffle-infused","Pan-seared","Roasted","Confit","Grilled","Braised","Smoked","Poached","Caramelized","Spicy"];
+        const nouns = ["Medley","Delight","Fusion","Symphony","Trio","Essence","Plate","Bowl","Experience","Creation"];
+        const gD: Dish[] = [];
+        for(let i=0;i<30;i++){
+          const n=Math.floor(Math.random()*5)+4;
+          const sp=[...gP].sort(()=>0.5-Math.random()).slice(0,n);
+          const ings: Ingredient[]=sp.map(s=>({productId:s.id,quantity:Number((Math.random()*0.2+0.05).toFixed(3)),lossPercentage:s.category==='Meat/Fish'?25:s.category==='Produce'?Math.floor(Math.random()*6)+15:5}));
+          gD.push({id:`DISH-CHEF-${i}`,name:`${adj[Math.floor(Math.random()*adj.length)]} ${sp[0].name} ${nouns[Math.floor(Math.random()*nouns.length)]}`,category:'Chef Signature',salePrice:Math.floor(Math.random()*66)+15,ingredients:ings});
         }
 
-        // Step 3: Randomized Sales
-        const generatedSales: Sale[] = [];
-        const shuffledDishes = [...generatedDishes].sort(() => 0.5 - Math.random());
-        const selectedDishes = shuffledDishes.slice(0, 15);
+        const gS: Sale[] = [];
+        const sd=[...gD].sort(()=>0.5-Math.random()).slice(0,15);
+        sd.forEach((dish,idx)=>{gS.push({id:`SALE-CHEF-${idx}`,date:today,dishId:dish.id,quantity:20,totalRevenue:20*dish.salePrice});});
 
-        selectedDishes.forEach((dish, idx) => {
-          generatedSales.push({
-            id: `SALE-CHEF-${idx}`,
-            date: today,
-            dishId: dish.id,
-            quantity: 20,
-            totalRevenue: 20 * dish.salePrice
-          });
-        });
-
-        // Final Commit
-        set({ 
-          products: generatedProducts, 
-          purchases: generatedPurchases, 
-          dishes: generatedDishes, 
-          sales: generatedSales, 
-          inventoryAudits: [],
-          supplierPayments: [],
-        });
-
+        set({ products: gP, purchases: gPu, dishes: gD, sales: gS, inventoryAudits: [], supplierPayments: [] });
         get().addLog('System Test', 'Chef Grand Opening data generated successfully');
       },
     }),

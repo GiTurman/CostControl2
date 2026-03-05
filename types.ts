@@ -64,3 +64,64 @@ export interface SupplierPayment {
   amount: number;
   note: string;
 }
+
+// ====== BREAKFAST ======
+
+export interface BreakfastIngredient {
+  productId: string;
+  quantity: number;
+  lossPercentage?: number;
+}
+
+export interface BreakfastDayMenu {
+  ingredients: BreakfastIngredient[];
+  pricePerGuest: number;
+}
+
+export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+
+export type WeeklyBreakfastMenus = Record<DayOfWeek, BreakfastDayMenu>;
+
+export interface BreakfastLog {
+  id: string;
+  date: string;
+  roomNumber: string;
+  guestCount: number;
+  dayOfWeek: DayOfWeek;
+}
+
+// ====== HOUSEKEEPING ======
+
+export interface HousekeepingBOMItem {
+  productId: string;
+  quantity: number;
+}
+
+export type RoomStatus = 'clean' | 'dirty' | 'in_progress';
+
+export interface Room {
+  id: string;
+  number: string;
+  floor: number;
+  status: RoomStatus;
+  guestCount: number;
+}
+
+export interface HousekeepingLog {
+  id: string;
+  date: string;
+  roomId: string;
+  roomNumber: string;
+  guestCount: number;
+}
+
+// ====== DIRECT CONSUMPTION (for inventory tracking) ======
+
+export interface DirectConsumption {
+  id: string;
+  date: string;
+  productId: string;
+  quantity: number;
+  source: 'breakfast' | 'housekeeping';
+  reference: string;
+}

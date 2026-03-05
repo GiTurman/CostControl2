@@ -5,7 +5,7 @@ import { Calendar, Download, Boxes, Save, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const InventoryPage: React.FC = () => {
-  const { language, products, purchases, sales, dishes, inventoryAudits, saveInventoryAudit } = useAppStore();
+  const { language, products, purchases, sales, dishes, inventoryAudits, saveInventoryAudit, directConsumptions = [] } = useAppStore() as any;
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [actualBalances, setActualBalances] = useState<Record<string, string>>({});
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -76,6 +76,16 @@ export const InventoryPage: React.FC = () => {
       }
     });
 
+    // 4b. Add direct consumptions (breakfast & housekeeping)
+    const windowDirect = (directConsumptions || []).filter((dc: any) => {
+      if (dc.date > selectedDate) return false;
+      if (lastAuditDate && dc.date <= lastAuditDate) return false;
+      return true;
+    });
+    windowDirect.forEach((dc: any) => {
+      consumedMap[dc.productId] = (consumedMap[dc.productId] || 0) + dc.quantity;
+    });
+
     return products.map((prod, index) => {
       // 5. Build the row data
       const startingBalance = lastAudit && lastAudit.balances[prod.id] !== undefined 
@@ -95,7 +105,7 @@ export const InventoryPage: React.FC = () => {
         expectedBalance,
       };
     });
-  }, [selectedDate, products, purchases, sales, dishes, inventoryAudits]);
+  }, [selectedDate, products, purchases, sales, dishes, inventoryAudits, directConsumptions]);
 
   const filteredInventoryData = useMemo(() => {
     if (!searchQuery.trim()) return inventoryData;

@@ -3,29 +3,12 @@ import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-d
 import { useAppStore } from '../store';
 import { t } from '../i18n';
 import { 
-  LayoutDashboard, 
-  Utensils, 
-  TrendingUp, 
-  ShoppingCart, 
-  Package, 
-  Boxes,
-  X,
-  Trash2,
-  Settings,
-  BookOpen,
-  LineChart,
-  LogOut,
-  Landmark,
-  ChevronDown,
-  ChevronRight,
-  UtensilsCrossed,
-  Sparkles
+  LayoutDashboard, Utensils, TrendingUp, ShoppingCart, Package, Boxes, X, Trash2,
+  Settings, BookOpen, LineChart, LogOut, Landmark, ChevronDown, ChevronRight,
+  UtensilsCrossed, Sparkles, Coffee, Home
 } from 'lucide-react';
 
-interface SidebarProps {
-  isOpen: boolean;
-  setIsOpen: (isOpen: boolean) => void;
-}
+interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { language, clearAllData, logout } = useAppStore();
@@ -34,28 +17,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const [searchParams] = useSearchParams();
   const [confirmModal, setConfirmModal] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-
-  // Sub-menu expand states
   const [restaurantExpanded, setRestaurantExpanded] = useState(true);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
+  const [hkExpanded, setHkExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
-
-  // Current path + query for debtor active detection
   const currentTab = searchParams.get('tab');
   const currentPath = window.location.pathname;
   const isOnDebtor = currentPath.includes('/debtor');
+  const isOnHK = currentPath.includes('/housekeeping') || currentPath.includes('/breakfast');
 
-  // Restaurant sub-menu items
   const restaurantSubItems = [
     { path: `${basePath}/menu`, label: t(language, 'menu'), icon: Utensils },
     { path: `${basePath}/sales`, label: t(language, 'sales'), icon: TrendingUp },
     { path: `${basePath}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
     { path: `${basePath}/products`, label: t(language, 'products'), icon: Boxes },
   ];
-
-  // Check if any restaurant sub-item is active
-  const isOnRestaurant = restaurantSubItems.some(item => currentPath.includes(item.path.split(basePath)[1]));
+  const isOnRestaurant = restaurantSubItems.some(item => currentPath.endsWith(item.path.split(basePath)[1]));
 
   const bottomNavItems = [
     { path: `${basePath}/settings`, label: language === 'ka' ? 'პარამეტრები' : 'Settings', icon: Settings },
@@ -63,289 +41,121 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   ];
 
   const handleClearData = () => {
-    setConfirmModal({
-      message: 'WARNING: Are you sure you want to completely Reset for Production? This will permanently wipe ALL DATA from the system.',
-      onConfirm: () => {
-        clearAllData(); 
-        setAlertMessage('System successfully reset for production use. Reloading...');
-        setTimeout(() => {
-          window.location.reload();
-        }, 1500);
-      }
+    setConfirmModal({ message: 'WARNING: Are you sure you want to completely Reset for Production? This will permanently wipe ALL DATA from the system.',
+      onConfirm: () => { clearAllData(); setAlertMessage('System successfully reset for production use. Reloading...'); setTimeout(() => window.location.reload(), 1500); }
     });
   };
 
-  const handleLogout = () => {
-    logout();
-    setIsOpen(false);
-    navigate('/login', { replace: true });
-  };
-
-  const navigateDebtor = (tab: string) => {
-    navigate(`${basePath}/debtor?tab=${tab}`);
-    setIsOpen(false);
-  };
+  const handleLogout = () => { logout(); setIsOpen(false); navigate('/login', { replace: true }); };
+  const navigateDebtor = (tab: string) => { navigate(`${basePath}/debtor?tab=${tab}`); setIsOpen(false); };
 
   return (
     <>
-      {/* Mobile Backdrop */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-20 md:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
+      {isOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setIsOpen(false)} />}
       <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-slate-300 flex flex-col h-full transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 shrink-0">
-          <h1 className="text-white font-bold text-lg truncate" title={t(language, 'appTitle')}>
-            {t(language, 'appTitle')}
-          </h1>
-          <button 
-            className="md:hidden text-slate-400 hover:text-white transition-colors"
-            onClick={() => setIsOpen(false)}
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <h1 className="text-white font-bold text-lg truncate">{t(language, 'appTitle')}</h1>
+          <button className="md:hidden text-slate-400 hover:text-white" onClick={() => setIsOpen(false)}><X className="w-5 h-5" /></button>
         </div>
         
         <nav className="flex-1 overflow-y-auto py-4">
           <ul className="space-y-1">
-
-            {/* Dashboard - top level */}
+            {/* Dashboard */}
             <li>
-              <NavLink
-                to={`${basePath}/dashboard`}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <LayoutDashboard className="w-5 h-5 mr-3" />
-                {t(language, 'dashboard')}
+              <NavLink to={`${basePath}/dashboard`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <LayoutDashboard className="w-5 h-5 mr-3" />{t(language, 'dashboard')}
               </NavLink>
             </li>
 
-            {/* ===== რესტორანი SUB-MENU ===== */}
+            {/* რესტორანი */}
             <li>
-              <button
-                onClick={() => setRestaurantExpanded(!restaurantExpanded)}
-                className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${
-                  isOnRestaurant && !restaurantExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center">
-                  <UtensilsCrossed className="w-5 h-5 mr-3" />
-                  {language === 'ka' ? 'რესტორანი' : 'Restaurant'}
-                </div>
-                {restaurantExpanded ? (
-                  <ChevronDown className="w-4 h-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 opacity-60" />
-                )}
+              <button onClick={() => setRestaurantExpanded(!restaurantExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isOnRestaurant && !restaurantExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><UtensilsCrossed className="w-5 h-5 mr-3" />{language === 'ka' ? 'რესტორანი' : 'Restaurant'}</div>
+                {restaurantExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
               </button>
-
               {restaurantExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
-                  {restaurantSubItems.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <li key={item.path}>
-                        <NavLink
-                          to={item.path}
-                          onClick={() => setIsOpen(false)}
-                          className={({ isActive }) =>
-                            `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
-                              isActive
-                                ? 'bg-brand-600 text-white'
-                                : 'hover:bg-slate-800 hover:text-white text-slate-400'
-                            }`
-                          }
-                        >
-                          <Icon className="w-4 h-4 mr-2.5" />
-                          {item.label}
-                        </NavLink>
-                      </li>
-                    );
-                  })}
+                  {restaurantSubItems.map(item => { const Icon = item.icon; return (
+                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                      <Icon className="w-4 h-4 mr-2.5" />{item.label}
+                    </NavLink></li>
+                  );})}
                 </ul>
               )}
             </li>
 
-            {/* Inventory - top level */}
+            {/* ინვენტარი */}
             <li>
-              <NavLink
-                to={`${basePath}/inventory`}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <Package className="w-5 h-5 mr-3" />
-                {t(language, 'inventory')}
+              <NavLink to={`${basePath}/inventory`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Package className="w-5 h-5 mr-3" />{t(language, 'inventory')}
               </NavLink>
             </li>
 
-            {/* ===== დებიტორი SUB-MENU ===== */}
+            {/* დებიტორი */}
             <li>
-              <button
-                onClick={() => setDebtorExpanded(!debtorExpanded)}
-                className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${
-                  isOnDebtor && !debtorExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center">
-                  <Landmark className="w-5 h-5 mr-3" />
-                  {language === 'ka' ? 'დებიტორი' : 'Debtors'}
-                </div>
-                {debtorExpanded ? (
-                  <ChevronDown className="w-4 h-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="w-4 h-4 opacity-60" />
-                )}
+              <button onClick={() => setDebtorExpanded(!debtorExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isOnDebtor && !debtorExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Landmark className="w-5 h-5 mr-3" />{language === 'ka' ? 'დებიტორი' : 'Debtors'}</div>
+                {debtorExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
               </button>
-
               {debtorExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
-                  <li>
-                    <button
-                      onClick={() => navigateDebtor('debts')}
-                      className={`w-full text-left flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
-                        isOnDebtor && (currentTab === 'debts' || !currentTab)
-                          ? 'bg-brand-600 text-white'
-                          : 'hover:bg-slate-800 hover:text-white text-slate-400'
-                      }`}
-                    >
-                      {language === 'ka' ? 'დავალიანება' : 'Debts'}
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={() => navigateDebtor('payments')}
-                      className={`w-full text-left flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
-                        isOnDebtor && currentTab === 'payments'
-                          ? 'bg-brand-600 text-white'
-                          : 'hover:bg-slate-800 hover:text-white text-slate-400'
-                      }`}
-                    >
-                      {language === 'ka' ? 'გადახდა' : 'Payments'}
-                    </button>
-                  </li>
+                  <li><button onClick={() => navigateDebtor('debts')} className={`w-full text-left pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isOnDebtor && (currentTab === 'debts' || !currentTab) ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>{language === 'ka' ? 'დავალიანება' : 'Debts'}</button></li>
+                  <li><button onClick={() => navigateDebtor('payments')} className={`w-full text-left pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isOnDebtor && currentTab === 'payments' ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>{language === 'ka' ? 'გადახდა' : 'Payments'}</button></li>
                 </ul>
               )}
             </li>
 
-            {/* ===== ჰაუს ქიფინგი - NEW ===== */}
+            {/* ჰაუს ქიფინგი */}
             <li>
-              <NavLink
-                to={`${basePath}/housekeeping`}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <Sparkles className="w-5 h-5 mr-3" />
-                {language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}
-              </NavLink>
+              <button onClick={() => setHkExpanded(!hkExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isOnHK && !hkExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Sparkles className="w-5 h-5 mr-3" />{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}</div>
+                {hkExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {hkExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  <li><NavLink to={`${basePath}/breakfast`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <Coffee className="w-4 h-4 mr-2.5" />{language === 'ka' ? 'საუზმე' : 'Breakfast'}
+                  </NavLink></li>
+                  <li><NavLink to={`${basePath}/housekeeping`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <Home className="w-4 h-4 mr-2.5" />{language === 'ka' ? 'ოთახები' : 'Rooms'}
+                  </NavLink></li>
+                </ul>
+              )}
             </li>
 
-            {/* ===== საუზმე - NEW ===== */}
+            {/* AI */}
             <li>
-              <NavLink
-                to={`${basePath}/Breakfast`}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <Sparkles className="w-5 h-5 mr-3" />
-                {language === 'ka' ? 'საუზმე' : 'Breakfast'}
+              <NavLink to={`${basePath}/ai-analytics`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <LineChart className="w-5 h-5 mr-3" />{t(language, 'aiInsights')}
               </NavLink>
             </li>
-
-
-            {/* AI Analytics - top level */}
-            <li>
-              <NavLink
-                to={`${basePath}/ai-analytics`}
-                onClick={() => setIsOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <LineChart className="w-5 h-5 mr-3" />
-                {t(language, 'aiInsights')}
-              </NavLink>
-            </li>
-
           </ul>
         </nav>
 
-        {/* Bottom Navigation (Settings & Guide) */}
         <div className="mt-auto pb-2">
           <ul className="space-y-1">
-            {bottomNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    onClick={() => setIsOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-brand-600 text-white'
-                          : 'hover:bg-slate-800 hover:text-white'
-                      }`
-                    }
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
-                  </NavLink>
-                </li>
-              );
-            })}
+            {bottomNavItems.map(item => { const Icon = item.icon; return (
+              <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Icon className="w-5 h-5 mr-3" />{item.label}
+              </NavLink></li>
+            );})}
           </ul>
         </div>
 
-        {/* System Settings & Actions */}
         <div className="p-4 border-t border-slate-800 space-y-3">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg text-sm font-bold transition-colors shadow-sm"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            {t(language, 'logout')}
+          <button onClick={handleLogout} className="w-full flex items-center justify-center px-4 py-2.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white rounded-lg text-sm font-bold transition-colors shadow-sm">
+            <LogOut className="w-4 h-4 mr-2" />{t(language, 'logout')}
           </button>
-          
-          <button
-            onClick={handleClearData}
-            className="w-full flex items-center justify-center px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg text-sm font-medium transition-colors border border-red-500/20 mt-2"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Reset for Production
+          <button onClick={handleClearData} className="w-full flex items-center justify-center px-4 py-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg text-sm font-medium transition-colors border border-red-500/20 mt-2">
+            <Trash2 className="w-4 h-4 mr-2" />Reset for Production
           </button>
-          <div className="text-xs text-slate-500 text-center mt-2">
-            ID: {restaurantId}
-          </div>
+          <div className="text-xs text-slate-500 text-center mt-2">ID: {restaurantId}</div>
         </div>
       </aside>
 
-      {/* Modals */}
       {confirmModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-2">ყურადღება / Warning</h3>
             <p className="text-sm text-gray-600 mb-6">{confirmModal.message}</p>
             <div className="flex space-x-3">
@@ -355,11 +165,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           </div>
         </div>
       )}
-
       {alertMessage && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 transform transition-all text-center">
-            <h3 className="text-lg font-bold text-gray-900 mb-2">შეტყობინება / Notification</h3>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center">
             <p className="text-sm text-gray-600 mb-6">{alertMessage}</p>
             <button onClick={() => setAlertMessage(null)} className="w-full px-4 py-2 bg-brand-600 text-white rounded-xl hover:bg-brand-700 font-bold">OK</button>
           </div>
