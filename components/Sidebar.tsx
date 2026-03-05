@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { 
   LayoutDashboard, Utensils, TrendingUp, ShoppingCart, Package, Boxes, X, Trash2,
   Settings, BookOpen, LineChart, LogOut, Landmark, ChevronDown, ChevronRight,
-  UtensilsCrossed, Sparkles, Coffee, Home, Wine, ClipboardList
+  UtensilsCrossed, Sparkles, Coffee, Home, Wine, ClipboardList, PackageOpen
 } from 'lucide-react';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
@@ -29,22 +29,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const isOnDebtor = currentPath.includes('/debtor');
 
   const getSubItems = (dept: string) => {
-    if (dept === 'restaurant' || dept === 'bar' || dept === 'breakfast') {
-      return [
-        { path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils },
-        { path: `${basePath}/${dept}/sales`, label: t(language, 'sales'), icon: TrendingUp },
-        { path: `${basePath}/${dept}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
-        { path: `${basePath}/${dept}/inventory`, label: t(language, 'inventory'), icon: Package },
-      ];
+    const items = [];
+    
+    // Menu / Operations
+    if (dept === 'restaurant' || dept === 'bar') {
+      items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
+    } else if (dept === 'breakfast') {
+      items.push({ path: `${basePath}/breakfast`, label: language === 'ka' ? 'საუზმე (ოპერაციები)' : 'Breakfast (Ops)', icon: Coffee });
+      items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
+    } else if (dept === 'housekeeping') {
+      items.push({ path: `${basePath}/housekeeping`, label: language === 'ka' ? 'დასუფთავება (ოპერაციები)' : 'Housekeeping (Ops)', icon: Sparkles });
+      items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     }
-    if (dept === 'housekeeping') {
-      return [
-        { path: `${basePath}/${dept}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
-        { path: `${basePath}/${dept}`, label: language === 'ka' ? 'ხარჯვა' : 'Consumption', icon: TrendingUp },
-        { path: `${basePath}/${dept}/inventory`, label: t(language, 'inventory'), icon: Package },
-      ];
-    }
-    return [];
+
+    // Sales
+    items.push({ path: `${basePath}/${dept}/sales`, label: t(language, 'sales'), icon: TrendingUp });
+
+    // Common items
+    items.push({ path: `${basePath}/${dept}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart });
+    items.push({ path: `${basePath}/${dept}/products`, label: t(language, 'products'), icon: Boxes });
+    items.push({ path: `${basePath}/${dept}/inventory`, label: t(language, 'inventory'), icon: Package });
+
+    return items;
   };
 
   const isDeptActive = (dept: string) => currentPath.includes(`/${dept}/`) || (dept === 'breakfast' && currentPath.endsWith('/breakfast')) || (dept === 'housekeeping' && currentPath.endsWith('/housekeeping'));
@@ -90,7 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               {restaurantExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
                   {getSubItems('restaurant').map(item => { const Icon = item.icon; return (
-                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <li key={item.path}><NavLink end to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
                   );})}
@@ -107,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               {barExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
                   {getSubItems('bar').map(item => { const Icon = item.icon; return (
-                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <li key={item.path}><NavLink end to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
                   );})}
@@ -124,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               {breakfastExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
                   {getSubItems('breakfast').map(item => { const Icon = item.icon; return (
-                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <li key={item.path}><NavLink end to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
                   );})}
@@ -141,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               {housekeepingExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
                   {getSubItems('housekeeping').map(item => { const Icon = item.icon; return (
-                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <li key={item.path}><NavLink end to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
                   );})}
@@ -161,6 +167,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   <li><button onClick={() => navigateDebtor('payments')} className={`w-full text-left pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isOnDebtor && currentTab === 'payments' ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>{language === 'ka' ? 'გადახდა' : 'Payments'}</button></li>
                 </ul>
               )}
+            </li>
+
+            {/* საერთო ინვენტარი */}
+            <li>
+              <NavLink to={`${basePath}/global-inventory`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <PackageOpen className="w-5 h-5 mr-3" />{language === 'ka' ? 'საერთო ინვენტარი' : 'Global Inventory'}
+              </NavLink>
             </li>
 
             {/* AI */}

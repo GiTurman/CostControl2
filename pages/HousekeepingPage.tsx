@@ -15,6 +15,8 @@ const STATUS_ORDER: RoomStatus[] = ['dirty', 'in_progress', 'clean'];
 export const HousekeepingPage: React.FC = () => {
   const { language, products, rooms, addRoom, deleteRoom, updateRoomStatus, housekeepingBOM, saveHousekeepingBOM, housekeepingLogs } = useAppStore();
 
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'housekeeping'), [products]);
+
   const [activeTab, setActiveTab] = useState<'rooms' | 'bom' | 'setup'>('rooms');
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
@@ -214,7 +216,7 @@ export const HousekeepingPage: React.FC = () => {
                     <div className="col-span-7">
                       <select value={item.productId} onChange={e => handleBOMChange(idx, 'productId', e.target.value)} className="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-xs bg-white">
                         <option value="">{language === 'ka' ? 'პროდუქტი...' : 'Product...'}</option>
-                        {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                        {deptProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
                       </select>
                     </div>
                     <div className="col-span-4">

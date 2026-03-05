@@ -106,14 +106,14 @@ export const SalesPage: React.FC = () => {
 
   const groupedSales = useMemo(() => {
     const groups: Record<string, Sale[]> = {};
-    const sortedSales = [...sales].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedSales = [...deptSales].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     sortedSales.forEach(s => {
       if (!groups[s.date]) groups[s.date] = [];
       groups[s.date].push(s);
     });
     return groups;
-  }, [sales]);
+  }, [deptSales]);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
@@ -144,10 +144,10 @@ export const SalesPage: React.FC = () => {
               <div className="bg-brand-100 p-1.5 rounded-lg mr-3">
                 <Plus className="w-5 h-5 text-brand-600" />
               </div>
-              {addTitle}
+              {t(language, 'addSale')}
             </h3>
             
-            {dishes.length === 0 ? (
+            {deptDishes.length === 0 ? (
               <div className="p-5 bg-amber-50 rounded-xl border border-amber-200 text-sm text-amber-800 flex flex-col items-center text-center">
                 <Store className="w-8 h-8 text-amber-400 mb-2" />
                 <span className="font-medium">{t(language, 'noDishesWarning')}</span>
@@ -176,7 +176,7 @@ export const SalesPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 focus:border-brand-500 sm:text-sm transition-colors"
                   >
                     <option value="" disabled>{t(language, 'selectDish')}</option>
-                    {dishes.map(d => (
+                    {deptDishes.map(d => (
                       <option key={d.id} value={d.id}>{d.name} ({formatCurrency(d.salePrice)})</option>
                     ))}
                   </select>
@@ -280,7 +280,6 @@ export const SalesPage: React.FC = () => {
                                   <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="px-5 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                                       {getDishName(sale.dishId)}
-                                      {sale.debtor && <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-md text-xs font-medium">Debtor: {sale.debtor}</span>}
                                     </td>
                                     <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-600 text-right">
                                       <span className="font-medium text-gray-900">{sale.quantity}</span>
@@ -365,7 +364,7 @@ export const SalesPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:bg-white focus:ring-2 focus:ring-brand-500 sm:text-sm"
                   >
                     <option value="" disabled>{t(language, 'selectDish')}</option>
-                    {dishes.map(d => (
+                    {deptDishes.map(d => (
                       <option key={d.id} value={d.id}>{d.name} ({formatCurrency(d.salePrice)})</option>
                     ))}
                   </select>

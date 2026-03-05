@@ -54,6 +54,7 @@ export interface InventoryAudit {
   id: string;
   date: string;
   balances: Record<string, number>;
+  department?: Department;
 }
 
 export interface ActivityLog {
@@ -141,4 +142,5 @@ export interface DirectConsumption {
   quantity: number;
   source: 'breakfast' | 'housekeeping';
   reference: string;
+  department?: Department;
 }

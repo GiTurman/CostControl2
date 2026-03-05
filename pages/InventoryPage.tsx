@@ -27,7 +27,7 @@ export const InventoryPage: React.FC = () => {
 
   // Pre-fill actual balances if an audit already exists for the selected date
   useEffect(() => {
-    const currentAudit = inventoryAudits.find(a => a.date === selectedDate);
+    const currentAudit = inventoryAudits.find(a => a.date === selectedDate && (a.department || 'restaurant') === currentDept);
     if (currentAudit) {
       const prefilled = Object.entries(currentAudit.balances).reduce((acc, [k, v]) => {
         acc[k] = String(v);
@@ -42,7 +42,7 @@ export const InventoryPage: React.FC = () => {
   const inventoryData = useMemo(() => {
     // 1. Find the most recent audit strictly BEFORE the selected date
     const prevAudits = inventoryAudits
-      .filter(a => a.date < selectedDate)
+      .filter(a => a.date < selectedDate && (a.department || 'restaurant') === currentDept)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     const lastAudit = prevAudits.length > 0 ? prevAudits[0] : null;
@@ -114,7 +114,7 @@ export const InventoryPage: React.FC = () => {
         expectedBalance,
       };
     });
-  }, [selectedDate, products, purchases, sales, dishes, inventoryAudits, directConsumptions]);
+  }, [selectedDate, products, purchases, sales, dishes, inventoryAudits, directConsumptions, currentDept]);
 
   const filteredInventoryData = useMemo(() => {
     if (!searchQuery.trim()) return inventoryData;
@@ -141,7 +141,7 @@ export const InventoryPage: React.FC = () => {
       }
     });
 
-    saveInventoryAudit({ date: selectedDate, balances: balancesToSave });
+    saveInventoryAudit({ date: selectedDate, balances: balancesToSave, department: currentDept });
     
     // Update local inputs to reflect saved defaults
     const updatedInputs = Object.keys(balancesToSave).reduce((acc, k) => {

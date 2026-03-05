@@ -28,7 +28,7 @@ export interface CustomerPayment {
 export const DebtorPage: React.FC = () => {
   const { 
     language, purchases, products, supplierPayments = [], customerPayments = [], 
-    breakfastLogs = [], sales = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment,
+    breakfastLogs = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment,
     addCustomerPayment, editCustomerPayment, deleteCustomerPayment
   } = useAppStore() as any;
 
@@ -160,7 +160,7 @@ export const DebtorPage: React.FC = () => {
   const summary = useMemo(() => {
     let totalDebt = 0;
     let totalPaid = 0;
-    Object.values(netBalances).forEach(v => {
+    Object.values(netBalances).forEach((v: any) => {
       totalDebt += v.totalDebt;
       totalPaid += v.totalPaid;
     });
@@ -176,18 +176,13 @@ export const DebtorPage: React.FC = () => {
         set.add(l.debtor.trim());
       }
     });
-    sales.forEach((s: any) => {
-      if (s.debtor && typeof s.debtor === 'string' && s.debtor.trim()) {
-        set.add(s.debtor.trim());
-      }
-    });
     return Array.from(set).sort();
-  }, [breakfastLogs, sales]);
+  }, [breakfastLogs]);
 
   const customerDebts = useMemo(() => {
     const map: Record<string, { logs: any[]; totalDebt: number }> = {};
 
-    const processLog = (l: any, amountField: string) => {
+    breakfastLogs.forEach((l: any) => {
       if (!l.debtor || typeof l.debtor !== 'string' || !l.debtor.trim()) return;
       const customer = l.debtor.trim();
 
@@ -198,14 +193,11 @@ export const DebtorPage: React.FC = () => {
 
       if (!map[customer]) map[customer] = { logs: [], totalDebt: 0 };
       map[customer].logs.push(l);
-      map[customer].totalDebt += (l[amountField] || 0);
-    };
-
-    breakfastLogs.forEach((l: any) => processLog(l, 'totalRevenue'));
-    sales.forEach((s: any) => processLog(s, 'totalRevenue'));
+      map[customer].totalDebt += (l.totalRevenue || 0);
+    });
 
     return map;
-  }, [breakfastLogs, sales, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
+  }, [breakfastLogs, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
 
   const filteredCustomerPayments = useMemo(() => {
     return (customerPayments || []).filter((pay: CustomerPayment) => {
@@ -232,13 +224,8 @@ export const DebtorPage: React.FC = () => {
       const customer = l.debtor.trim();
       map[customer] = (map[customer] || 0) + (l.totalRevenue || 0);
     });
-    sales.forEach((s: any) => {
-      if (!s.debtor || typeof s.debtor !== 'string' || !s.debtor.trim()) return;
-      const customer = s.debtor.trim();
-      map[customer] = (map[customer] || 0) + (s.totalRevenue || 0);
-    });
     return map;
-  }, [breakfastLogs, sales]);
+  }, [breakfastLogs]);
 
   const netCustomerBalances = useMemo(() => {
     const result: Record<string, { totalDebt: number; totalPaid: number; balance: number }> = {};
@@ -253,7 +240,7 @@ export const DebtorPage: React.FC = () => {
   const customerSummary = useMemo(() => {
     let totalDebt = 0;
     let totalPaid = 0;
-    Object.values(netCustomerBalances).forEach(v => {
+    Object.values(netCustomerBalances).forEach((v: any) => {
       totalDebt += v.totalDebt;
       totalPaid += v.totalPaid;
     });
@@ -376,7 +363,7 @@ export const DebtorPage: React.FC = () => {
     const entityNameKa = viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია';
     const entityNameEn = viewMode === 'suppliers' ? 'suppliers' : 'customers';
 
-    Object.entries(currentBalances).forEach(([entity, bal]) => {
+    Object.entries(currentBalances).forEach(([entity, bal]: [string, any]) => {
       if (bal.balance > maxDebt) {
         maxDebt = bal.balance;
         maxDebtEntity = entity;
@@ -599,8 +586,8 @@ export const DebtorPage: React.FC = () => {
                   </div>
                 ) : (
                   Object.entries(viewMode === 'suppliers' ? supplierDebts : customerDebts)
-                    .sort((a, b) => b[1].totalDebt - a[1].totalDebt)
-                    .map(([entityName, data]) => {
+                    .sort((a: [string, any], b: [string, any]) => b[1].totalDebt - a[1].totalDebt)
+                    .map(([entityName, data]: [string, any]) => {
                       const isExpanded = expandedSuppliers[entityName];
                       const bal = viewMode === 'suppliers' ? netBalances[entityName] : netCustomerBalances[entityName];
                       const isSettled = bal && bal.balance <= 0.01;

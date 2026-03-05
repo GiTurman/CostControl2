@@ -223,36 +223,42 @@ export const useAppStore = create<AppState>()(
 
       addPurchase: (purchaseData) => {
         const state = get();
-        let existingProduct = state.products.find(p => p.name.toLowerCase() === purchaseData.productName.toLowerCase());
+        let existingProduct = state.products.find(p => 
+          p.name.toLowerCase() === purchaseData.productName.toLowerCase() && 
+          (p.department || 'restaurant') === (purchaseData.department || 'restaurant')
+        );
         let newProducts = [...state.products];
         let productId = existingProduct?.id;
         if (!existingProduct) {
           productId = generateId();
-          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0 });
+          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
         } else if (purchaseData.code && !existingProduct.code) {
           existingProduct.code = purchaseData.code;
         }
         set({
           products: newProducts,
-          purchases: [...state.purchases, { id: generateId(), date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '' }],
+          purchases: [...state.purchases, { id: generateId(), date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department }],
         });
         get().addLog('Purchase Added', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
 
       editPurchase: (id, purchaseData) => {
         const state = get();
-        let existingProduct = state.products.find(p => p.name.toLowerCase() === purchaseData.productName.toLowerCase());
+        let existingProduct = state.products.find(p => 
+          p.name.toLowerCase() === purchaseData.productName.toLowerCase() && 
+          (p.department || 'restaurant') === (purchaseData.department || 'restaurant')
+        );
         let newProducts = [...state.products];
         let productId = existingProduct?.id;
         if (!existingProduct) {
           productId = generateId();
-          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0 });
+          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
         } else if (purchaseData.code && !existingProduct.code) {
           existingProduct.code = purchaseData.code;
         }
         set({
           products: newProducts,
-          purchases: state.purchases.map(p => p.id === id ? { ...p, date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '' } : p),
+          purchases: state.purchases.map(p => p.id === id ? { ...p, date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department } : p),
         });
         get().addLog('Purchase Edited', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
@@ -262,13 +268,16 @@ export const useAppStore = create<AppState>()(
         let newProducts = [...state.products];
         let newPurchases = [...state.purchases];
         bulkPurchases.forEach(pd => {
-          let ep = newProducts.find(p => p.name.toLowerCase() === pd.productName.toLowerCase());
+          let ep = newProducts.find(p => 
+            p.name.toLowerCase() === pd.productName.toLowerCase() && 
+            (p.department || 'restaurant') === (pd.department || 'restaurant')
+          );
           let pid = ep?.id;
           if (!ep) {
             pid = generateId();
-            newProducts.push({ id: pid, code: pd.code, name: pd.productName, unit: pd.unit, category: pd.category || 'General', minBalance: 0 });
+            newProducts.push({ id: pid, code: pd.code, name: pd.productName, unit: pd.unit, category: pd.category || 'General', minBalance: 0, department: pd.department });
           } else if (pd.code && !ep.code) { ep.code = pd.code; }
-          newPurchases.push({ id: generateId(), date: pd.date, productId: pid!, quantity: pd.quantity, price: pd.price, total: pd.quantity * pd.price, supplier: pd.supplier || '' });
+          newPurchases.push({ id: generateId(), date: pd.date, productId: pid!, quantity: pd.quantity, price: pd.price, total: pd.quantity * pd.price, supplier: pd.supplier || '', department: pd.department });
         });
         set({ products: newProducts, purchases: newPurchases });
         get().addLog('Bulk Import', `${bulkPurchases.length} purchases imported from Excel`);
@@ -276,12 +285,12 @@ export const useAppStore = create<AppState>()(
 
       saveInventoryAudit: (audit) => {
         const state = get();
-        const idx = state.inventoryAudits.findIndex(a => a.date === audit.date);
+        const idx = state.inventoryAudits.findIndex(a => a.date === audit.date && a.department === audit.department);
         const newAudits = [...state.inventoryAudits];
         if (idx >= 0) { newAudits[idx] = { ...newAudits[idx], balances: audit.balances }; }
         else { newAudits.push({ id: generateId(), ...audit }); }
         set({ inventoryAudits: newAudits });
-        get().addLog('Inventory Saved', `Audit for date ${audit.date}`);
+        get().addLog('Inventory Saved', `Audit for date ${audit.date} (${audit.department || 'restaurant'})`);
       },
 
       // === SUPPLIER PAYMENTS ===
@@ -340,6 +349,7 @@ export const useAppStore = create<AppState>()(
               quantity: gross * guestCount,
               source: 'breakfast',
               reference: logId,
+              department: 'breakfast',
             });
           });
         }
@@ -398,6 +408,7 @@ export const useAppStore = create<AppState>()(
               quantity: item.quantity * updatedRoom.guestCount,
               source: 'housekeeping',
               reference: logId,
+              department: 'housekeeping',
             });
           });
         }

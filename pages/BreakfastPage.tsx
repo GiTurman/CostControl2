@@ -23,6 +23,9 @@ export const BreakfastPage: React.FC = () => {
     breakfastLogs, logBreakfast, deleteBreakfastLog, rooms 
   } = useAppStore();
 
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'breakfast'), [products]);
+  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === 'breakfast'), [purchases]);
+
   const [activeTab, setActiveTab] = useState<'pos' | 'menu'>('pos');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1].key);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export const BreakfastPage: React.FC = () => {
   };
 
   const getProductLastPrice = (productId: string): number => {
-    const prodPurchases = purchases.filter(p => p.productId === productId);
+    const prodPurchases = deptPurchases.filter(p => p.productId === productId);
     if (prodPurchases.length === 0) return 0;
     return [...prodPurchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0].price;
   };
@@ -60,7 +63,7 @@ export const BreakfastPage: React.FC = () => {
       const grossQty = getGrossQuantity(ing.quantity, ing.lossPercentage || 0);
       return total + (getProductLastPrice(ing.productId) * grossQty);
     }, 0);
-  }, [editIngredients, purchases]);
+  }, [editIngredients, deptPurchases]);
 
   // --- HANDLERS ---
   const handleSaveMenu = () => {
@@ -149,7 +152,7 @@ export const BreakfastPage: React.FC = () => {
                 <h3 className="text-lg font-bold text-gray-900">{language === 'ka' ? 'საუზმის არქივი' : 'Breakfast Archive'}</h3>
               </div>
               <div className="divide-y divide-gray-100">
-                {Object.entries(groupedLogs).map(([date, logs]) => (
+                {Object.entries(groupedLogs).map(([date, logs]: [string, BreakfastLog[]]) => (
                   <div key={date} className="group">
                     <button onClick={() => setExpandedDates(p => ({...p, [date]: !p[date]}))} className="w-full px-5 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                       <div className="flex items-center gap-3">
@@ -225,7 +228,7 @@ export const BreakfastPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {editIngredients.map((ing, idx) => {
-                      const prod = products.find(p => p.id === ing.productId);
+                      const prod = deptProducts.find(p => p.id === ing.productId);
                       return (
                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-2">
@@ -233,7 +236,7 @@ export const BreakfastPage: React.FC = () => {
                               const news = [...editIngredients]; news[idx].productId = e.target.value; setEditIngredients(news);
                             }} className="w-full bg-transparent border-none font-medium focus:ring-0 text-gray-900 p-0">
                               <option value="">{t(language, 'selectIngredient')}</option>
-                              {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              {deptProducts.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                             </select>
                           </td>
                           <td className="px-4 py-2 text-right">
