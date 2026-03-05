@@ -17,7 +17,9 @@ import {
   LogOut,
   Landmark,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  UtensilsCrossed,
+  Sparkles
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,6 +34,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const [searchParams] = useSearchParams();
   const [confirmModal, setConfirmModal] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  // Sub-menu expand states
+  const [restaurantExpanded, setRestaurantExpanded] = useState(true);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
@@ -41,15 +46,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const currentPath = window.location.pathname;
   const isOnDebtor = currentPath.includes('/debtor');
 
-  const navItems = [
-    { path: `${basePath}/dashboard`, label: t(language, 'dashboard'), icon: LayoutDashboard },
+  // Restaurant sub-menu items
+  const restaurantSubItems = [
     { path: `${basePath}/menu`, label: t(language, 'menu'), icon: Utensils },
     { path: `${basePath}/sales`, label: t(language, 'sales'), icon: TrendingUp },
     { path: `${basePath}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
-    { path: `${basePath}/inventory`, label: t(language, 'inventory'), icon: Package },
     { path: `${basePath}/products`, label: t(language, 'products'), icon: Boxes },
-    { path: `${basePath}/ai-analytics`, label: t(language, 'aiInsights'), icon: LineChart },
   ];
+
+  // Check if any restaurant sub-item is active
+  const isOnRestaurant = restaurantSubItems.some(item => currentPath.includes(item.path.split(basePath)[1]));
 
   const bottomNavItems = [
     { path: `${basePath}/settings`, label: language === 'ka' ? 'პარამეტრები' : 'Settings', icon: Settings },
@@ -106,29 +112,86 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         
         <nav className="flex-1 overflow-y-auto py-4">
           <ul className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    onClick={() => setIsOpen(false)}
-                    className={({ isActive }) =>
-                      `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-brand-600 text-white'
-                          : 'hover:bg-slate-800 hover:text-white'
-                      }`
-                    }
-                  >
-                    <Icon className="w-5 h-5 mr-3" />
-                    {item.label}
-                  </NavLink>
-                </li>
-              );
-            })}
 
-            {/* === DEBTOR SUB-MENU === */}
+            {/* Dashboard - top level */}
+            <li>
+              <NavLink
+                to={`${basePath}/dashboard`}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <LayoutDashboard className="w-5 h-5 mr-3" />
+                {t(language, 'dashboard')}
+              </NavLink>
+            </li>
+
+            {/* ===== რესტორანი SUB-MENU ===== */}
+            <li>
+              <button
+                onClick={() => setRestaurantExpanded(!restaurantExpanded)}
+                className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${
+                  isOnRestaurant && !restaurantExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center">
+                  <UtensilsCrossed className="w-5 h-5 mr-3" />
+                  {language === 'ka' ? 'რესტორანი' : 'Restaurant'}
+                </div>
+                {restaurantExpanded ? (
+                  <ChevronDown className="w-4 h-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="w-4 h-4 opacity-60" />
+                )}
+              </button>
+
+              {restaurantExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  {restaurantSubItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.path}>
+                        <NavLink
+                          to={item.path}
+                          onClick={() => setIsOpen(false)}
+                          className={({ isActive }) =>
+                            `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-brand-600 text-white'
+                                : 'hover:bg-slate-800 hover:text-white text-slate-400'
+                            }`
+                          }
+                        >
+                          <Icon className="w-4 h-4 mr-2.5" />
+                          {item.label}
+                        </NavLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </li>
+
+            {/* Inventory - top level */}
+            <li>
+              <NavLink
+                to={`${basePath}/inventory`}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <Package className="w-5 h-5 mr-3" />
+                {t(language, 'inventory')}
+              </NavLink>
+            </li>
+
+            {/* ===== დებიტორი SUB-MENU ===== */}
             <li>
               <button
                 onClick={() => setDebtorExpanded(!debtorExpanded)}
@@ -146,13 +209,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   <ChevronRight className="w-4 h-4 opacity-60" />
                 )}
               </button>
-              
+
               {debtorExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
                   <li>
                     <button
                       onClick={() => navigateDebtor('debts')}
-                      className={`w-full text-left flex items-center pl-6 pr-4 py-2.5 text-sm font-medium transition-colors ${
+                      className={`w-full text-left flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
                         isOnDebtor && (currentTab === 'debts' || !currentTab)
                           ? 'bg-brand-600 text-white'
                           : 'hover:bg-slate-800 hover:text-white text-slate-400'
@@ -164,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   <li>
                     <button
                       onClick={() => navigateDebtor('payments')}
-                      className={`w-full text-left flex items-center pl-6 pr-4 py-2.5 text-sm font-medium transition-colors ${
+                      className={`w-full text-left flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${
                         isOnDebtor && currentTab === 'payments'
                           ? 'bg-brand-600 text-white'
                           : 'hover:bg-slate-800 hover:text-white text-slate-400'
@@ -176,6 +239,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 </ul>
               )}
             </li>
+
+            {/* ===== ჰაუს ქიფინგი - NEW ===== */}
+            <li>
+              <NavLink
+                to={`${basePath}/housekeeping`}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <Sparkles className="w-5 h-5 mr-3" />
+                {language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}
+              </NavLink>
+            </li>
+
+            {/* ===== საუზმე - NEW ===== */}
+            <li>
+              <NavLink
+                to={`${basePath}/Breakfast`}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <Sparkles className="w-5 h-5 mr-3" />
+                {language === 'ka' ? 'საუზმე' : 'Breakfast'}
+              </NavLink>
+            </li>
+
+
+            {/* AI Analytics - top level */}
+            <li>
+              <NavLink
+                to={`${basePath}/ai-analytics`}
+                onClick={() => setIsOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center px-6 py-3 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                  }`
+                }
+              >
+                <LineChart className="w-5 h-5 mr-3" />
+                {t(language, 'aiInsights')}
+              </NavLink>
+            </li>
+
           </ul>
         </nav>
 
