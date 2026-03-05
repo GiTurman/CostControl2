@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink, useNavigate, useParams } from 'react-router-dom';
+import { NavLink, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { t } from '../i18n';
 import { 
@@ -29,11 +29,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { language, clearAllData, logout } = useAppStore();
   const { restaurantId } = useParams<{ restaurantId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [confirmModal, setConfirmModal] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
+
+  // Current path + query for debtor active detection
+  const currentTab = searchParams.get('tab');
+  const currentPath = window.location.pathname;
+  const isOnDebtor = currentPath.includes('/debtor');
 
   const navItems = [
     { path: `${basePath}/dashboard`, label: t(language, 'dashboard'), icon: LayoutDashboard },
@@ -45,19 +51,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { path: `${basePath}/ai-analytics`, label: t(language, 'aiInsights'), icon: LineChart },
   ];
 
-  const debtorSubItems = [
-    { 
-      path: `${basePath}/debtor?tab=debts`, 
-      label: language === 'ka' ? 'დავალიანება' : 'Debts',
-      matchPath: `${basePath}/debtor`,
-    },
-    { 
-      path: `${basePath}/debtor?tab=payments`, 
-      label: language === 'ka' ? 'გადახდა' : 'Payments',
-      matchPath: `${basePath}/debtor`,
-    },
-  ];
-
   const bottomNavItems = [
     { path: `${basePath}/settings`, label: language === 'ka' ? 'პარამეტრები' : 'Settings', icon: Settings },
     { path: `${basePath}/instructions`, label: language === 'ka' ? 'ინსტრუქცია' : 'Guide', icon: BookOpen },
@@ -67,9 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     setConfirmModal({
       message: 'WARNING: Are you sure you want to completely Reset for Production? This will permanently wipe ALL DATA from the system.',
       onConfirm: () => {
-        // Safe clear: Wipes products, dishes, sales, purchases, and audits, but keeps Auth State & Settings intact.
         clearAllData(); 
-        
         setAlertMessage('System successfully reset for production use. Reloading...');
         setTimeout(() => {
           window.location.reload();
@@ -82,6 +73,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     logout();
     setIsOpen(false);
     navigate('/login', { replace: true });
+  };
+
+  const navigateDebtor = (tab: string) => {
+    navigate(`${basePath}/debtor?tab=${tab}`);
+    setIsOpen(false);
   };
 
   return (
@@ -132,11 +128,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               );
             })}
 
-            {/* === DEBTOR SUB-MENU (NEW) === */}
+            {/* === DEBTOR SUB-MENU === */}
             <li>
               <button
                 onClick={() => setDebtorExpanded(!debtorExpanded)}
-                className="w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors hover:bg-slate-800 hover:text-white"
+                className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${
+                  isOnDebtor && !debtorExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'
+                }`}
               >
                 <div className="flex items-center">
                   <Landmark className="w-5 h-5 mr-3" />
@@ -151,23 +149,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               
               {debtorExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
-                  {debtorSubItems.map((sub) => (
-                    <li key={sub.path}>
-                      <NavLink
-                        to={sub.path}
-                        onClick={() => setIsOpen(false)}
-                        className={({ isActive }) =>
-                          `flex items-center pl-6 pr-4 py-2.5 text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-brand-600 text-white'
-                              : 'hover:bg-slate-800 hover:text-white text-slate-400'
-                          }`
-                        }
-                      >
-                        {sub.label}
-                      </NavLink>
-                    </li>
-                  ))}
+                  <li>
+                    <button
+                      onClick={() => navigateDebtor('debts')}
+                      className={`w-full text-left flex items-center pl-6 pr-4 py-2.5 text-sm font-medium transition-colors ${
+                        isOnDebtor && (currentTab === 'debts' || !currentTab)
+                          ? 'bg-brand-600 text-white'
+                          : 'hover:bg-slate-800 hover:text-white text-slate-400'
+                      }`}
+                    >
+                      {language === 'ka' ? 'დავალიანება' : 'Debts'}
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => navigateDebtor('payments')}
+                      className={`w-full text-left flex items-center pl-6 pr-4 py-2.5 text-sm font-medium transition-colors ${
+                        isOnDebtor && currentTab === 'payments'
+                          ? 'bg-brand-600 text-white'
+                          : 'hover:bg-slate-800 hover:text-white text-slate-400'
+                      }`}
+                    >
+                      {language === 'ka' ? 'გადახდა' : 'Payments'}
+                    </button>
+                  </li>
                 </ul>
               )}
             </li>

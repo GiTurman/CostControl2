@@ -1,14 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { t, formatCurrency } from '../i18n';
 import { 
   Landmark, Calendar, Search, Download, Plus, Edit2, Trash2, X, 
   CreditCard, FileText, Brain, ChevronDown, ChevronRight, Filter,
-  AlertTriangle, CheckCircle, Clock
+  CheckCircle, Clock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-// ====== Types for Debtor System ======
 export interface SupplierPayment {
   id: string;
   supplier: string;
@@ -18,10 +18,25 @@ export interface SupplierPayment {
 }
 
 export const DebtorPage: React.FC = () => {
-  const { language, purchases, supplierPayments = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment } = useAppStore() as any;
+  const { language, purchases, products, supplierPayments = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment } = useAppStore() as any;
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<'debts' | 'payments'>('debts');
+  // Read tab from URL query param
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<'debts' | 'payments'>(tabFromUrl === 'payments' ? 'payments' : 'debts');
+
+  // Sync tab with URL
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t === 'payments' || t === 'debts') {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: 'debts' | 'payments') => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   // Filter states
   const [searchSupplier, setSearchSupplier] = useState('');
@@ -43,13 +58,22 @@ export const DebtorPage: React.FC = () => {
   // Expanded suppliers in debt view
   const [expandedSuppliers, setExpandedSuppliers] = useState<Record<string, boolean>>({});
 
+  // ====== Helper: get product name by id ======
+  const getProductName = (productId: string): string => {
+    const p = products.find((pr: any) => pr.id === productId);
+    return p?.name || 'N/A';
+  };
+
   // ====== Derived Data ======
 
-  // Unique suppliers from purchases
+  // Unique suppliers from purchases (only valid string names, not numbers)
   const allSuppliers = useMemo(() => {
     const set = new Set<string>();
     purchases.forEach((p: any) => {
-      if (p.supplier && p.supplier.trim()) set.add(p.supplier.trim());
+      const sup = p.supplier;
+      if (sup && typeof sup === 'string' && sup.trim() && isNaN(Number(sup.trim()))) {
+        set.add(sup.trim());
+      }
     });
     return Array.from(set).sort();
   }, [purchases]);
@@ -59,14 +83,12 @@ export const DebtorPage: React.FC = () => {
     const map: Record<string, { purchases: any[]; totalDebt: number }> = {};
 
     purchases.forEach((p: any) => {
-      if (!p.supplier || !p.supplier.trim()) return;
-      const supplier = p.supplier.trim();
+      const sup = p.supplier;
+      if (!sup || typeof sup !== 'string' || !sup.trim() || !isNaN(Number(sup.trim()))) return;
+      const supplier = sup.trim();
 
-      // Apply date filters
       if (dateFrom && p.date < dateFrom) return;
       if (dateTo && p.date > dateTo) return;
-
-      // Apply supplier search filter
       if (searchSupplier && !supplier.toLowerCase().includes(searchSupplier.toLowerCase())) return;
       if (selectedSupplierFilter && supplier !== selectedSupplierFilter) return;
 
@@ -78,7 +100,7 @@ export const DebtorPage: React.FC = () => {
     return map;
   }, [purchases, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
 
-  // Payments grouped by supplier with filtering
+  // Payments filtered
   const filteredPayments = useMemo(() => {
     return (supplierPayments || []).filter((pay: SupplierPayment) => {
       if (dateFrom && pay.date < dateFrom) return false;
@@ -89,7 +111,7 @@ export const DebtorPage: React.FC = () => {
     });
   }, [supplierPayments, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
 
-  // Total payments per supplier (all time, for balance calc)
+  // Total payments per supplier (all time)
   const totalPaymentsBySupplier = useMemo(() => {
     const map: Record<string, number> = {};
     (supplierPayments || []).forEach((pay: SupplierPayment) => {
@@ -98,12 +120,13 @@ export const DebtorPage: React.FC = () => {
     return map;
   }, [supplierPayments]);
 
-  // All-time debt per supplier (no date filter)
+  // All-time debt per supplier
   const allTimeDebtBySupplier = useMemo(() => {
     const map: Record<string, number> = {};
     purchases.forEach((p: any) => {
-      if (!p.supplier || !p.supplier.trim()) return;
-      const supplier = p.supplier.trim();
+      const sup = p.supplier;
+      if (!sup || typeof sup !== 'string' || !sup.trim() || !isNaN(Number(sup.trim()))) return;
+      const supplier = sup.trim();
       map[supplier] = (map[supplier] || 0) + p.total;
     });
     return map;
@@ -230,10 +253,8 @@ export const DebtorPage: React.FC = () => {
       if (highDebt.length > 0) lines.push(`🔴 მაღალი ვალის მქონე მომწოდებლები (>5000): ${highDebt.join(', ')}`);
       if (overdue.length > 0) lines.push(`⏰ არცერთი გადახდა არ განხორციელებულა: ${overdue.join(', ')}`);
       if (summary.balance <= 0) lines.push('✅ ყველა მომწოდებელთან ვალი დაფარულია!');
-      
       const paidPercent = summary.totalDebt > 0 ? ((summary.totalPaid / summary.totalDebt) * 100).toFixed(1) : '0';
       lines.push(`💰 გადახდის პროცენტი: ${paidPercent}% (${formatCurrency(summary.totalPaid)} / ${formatCurrency(summary.totalDebt)})`);
-      
       if (Number(paidPercent) < 50) {
         lines.push('💡 რეკომენდაცია: გადახდის პროცენტი 50%-ზე ნაკლებია. გადახედეთ გადახდის გრაფიკს.');
       }
@@ -243,10 +264,8 @@ export const DebtorPage: React.FC = () => {
       if (highDebt.length > 0) lines.push(`🔴 High debt suppliers (>5000): ${highDebt.join(', ')}`);
       if (overdue.length > 0) lines.push(`⏰ No payments made yet: ${overdue.join(', ')}`);
       if (summary.balance <= 0) lines.push('✅ All supplier debts are settled!');
-      
       const paidPercent = summary.totalDebt > 0 ? ((summary.totalPaid / summary.totalDebt) * 100).toFixed(1) : '0';
       lines.push(`💰 Payment ratio: ${paidPercent}% (${formatCurrency(summary.totalPaid)} / ${formatCurrency(summary.totalDebt)})`);
-      
       if (Number(paidPercent) < 50) {
         lines.push('💡 Recommendation: Payment ratio is below 50%. Consider reviewing your payment schedule.');
       }
@@ -363,7 +382,6 @@ export const DebtorPage: React.FC = () => {
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="From"
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
             />
           </div>
@@ -373,276 +391,268 @@ export const DebtorPage: React.FC = () => {
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              placeholder="To"
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
             />
           </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 bg-white rounded-t-2xl overflow-hidden">
-        <button
-          onClick={() => setActiveTab('debts')}
-          className={`flex-1 px-6 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
-            activeTab === 'debts' ? 'text-purple-700 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          <FileText className="w-4 h-4" />
-          {language === 'ka' ? 'დავალიანება' : 'Debts'}
-        </button>
-        <button
-          onClick={() => setActiveTab('payments')}
-          className={`flex-1 px-6 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
-            activeTab === 'payments' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-          }`}
-        >
-          <CreditCard className="w-4 h-4" />
-          {language === 'ka' ? 'გადახდები' : 'Payments'}
-        </button>
-      </div>
+      {/* Tabs + Content (single wrapper, no gap) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* Tab Buttons */}
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => handleTabChange('debts')}
+            className={`flex-1 px-6 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'debts' ? 'text-purple-700 border-b-2 border-purple-600 bg-purple-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <FileText className="w-4 h-4" />
+            {language === 'ka' ? 'დავალიანება' : 'Debts'}
+          </button>
+          <button
+            onClick={() => handleTabChange('payments')}
+            className={`flex-1 px-6 py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'payments' ? 'text-green-700 border-b-2 border-green-600 bg-green-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            {language === 'ka' ? 'გადახდები' : 'Payments'}
+          </button>
+        </div>
 
-      {/* ======= DEBTS TAB ======= */}
-      {activeTab === 'debts' && (
-        <div className="bg-white rounded-b-2xl rounded-t-none shadow-sm border border-gray-200 border-t-0 overflow-hidden">
-          {allSuppliers.length === 0 ? (
-            <div className="p-12 text-center">
-              <Landmark className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-700 font-medium">{language === 'ka' ? 'მომწოდებლები არ მოიძებნა' : 'No suppliers found'}</p>
-              <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ მომწოდებლის სახელი შესყიდვებში' : 'Add supplier names in Purchases'}</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {Object.entries(supplierDebts).length === 0 ? (
-                <div className="p-8 text-center text-gray-500 text-sm">
-                  {language === 'ka' ? 'არჩეული ფილტრებით მონაცემები არ მოიძებნა' : 'No data found for selected filters'}
-                </div>
-              ) : (
-                Object.entries(supplierDebts)
-                  .sort((a, b) => b[1].totalDebt - a[1].totalDebt)
-                  .map(([supplier, data]) => {
-                    const isExpanded = expandedSuppliers[supplier];
-                    const bal = netBalances[supplier];
-                    const isSettled = bal && bal.balance <= 0.01;
+        {/* ======= DEBTS TAB ======= */}
+        {activeTab === 'debts' && (
+          <div>
+            {allSuppliers.length === 0 ? (
+              <div className="p-12 text-center">
+                <Landmark className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-700 font-medium">{language === 'ka' ? 'მომწოდებლები არ მოიძებნა' : 'No suppliers found'}</p>
+                <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ მომწოდებლის სახელი შესყიდვებში' : 'Add supplier names in Purchases'}</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {Object.entries(supplierDebts).length === 0 ? (
+                  <div className="p-8 text-center text-gray-500 text-sm">
+                    {language === 'ka' ? 'არჩეული ფილტრებით მონაცემები არ მოიძებნა' : 'No data found for selected filters'}
+                  </div>
+                ) : (
+                  Object.entries(supplierDebts)
+                    .sort((a, b) => b[1].totalDebt - a[1].totalDebt)
+                    .map(([supplier, data]) => {
+                      const isExpanded = expandedSuppliers[supplier];
+                      const bal = netBalances[supplier];
+                      const isSettled = bal && bal.balance <= 0.01;
 
-                    return (
-                      <div key={supplier}>
-                        <button
-                          onClick={() => toggleSupplier(supplier)}
-                          className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                            <div className="flex items-center gap-2">
-                              {isSettled ? (
-                                <CheckCircle className="w-4 h-4 text-green-500" />
-                              ) : (
-                                <Clock className="w-4 h-4 text-amber-500" />
-                              )}
-                              <span className="font-bold text-gray-900 text-sm">{supplier}</span>
+                      return (
+                        <div key={supplier}>
+                          <button
+                            onClick={() => toggleSupplier(supplier)}
+                            className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                              <div className="flex items-center gap-2">
+                                {isSettled ? (
+                                  <CheckCircle className="w-4 h-4 text-green-500" />
+                                ) : (
+                                  <Clock className="w-4 h-4 text-amber-500" />
+                                )}
+                                <span className="font-bold text-gray-900 text-sm">{supplier}</span>
+                              </div>
+                              <span className="text-xs text-gray-400">({data.purchases.length} {language === 'ka' ? 'ჩანაწერი' : 'records'})</span>
                             </div>
-                            <span className="text-xs text-gray-400">({data.purchases.length} {language === 'ka' ? 'ჩანაწერი' : 'records'})</span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="text-gray-500">{language === 'ka' ? 'შესყიდვა' : 'Purchased'}: <strong className="text-gray-800">{formatCurrency(data.totalDebt)}</strong></span>
-                            <span className="text-green-600">{language === 'ka' ? 'გადახდილი' : 'Paid'}: <strong>{formatCurrency(totalPaymentsBySupplier[supplier] || 0)}</strong></span>
-                            <span className={`font-black ${isSettled ? 'text-green-600' : 'text-red-600'}`}>
-                              {language === 'ka' ? 'ვალი' : 'Owed'}: {formatCurrency(bal?.balance || 0)}
-                            </span>
-                          </div>
-                        </button>
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className="text-gray-500">{language === 'ka' ? 'შესყიდვა' : 'Purchased'}: <strong className="text-gray-800">{formatCurrency(data.totalDebt)}</strong></span>
+                              <span className="text-green-600">{language === 'ka' ? 'გადახდილი' : 'Paid'}: <strong>{formatCurrency(totalPaymentsBySupplier[supplier] || 0)}</strong></span>
+                              <span className={`font-black ${isSettled ? 'text-green-600' : 'text-red-600'}`}>
+                                {language === 'ka' ? 'ვალი' : 'Owed'}: {formatCurrency(bal?.balance || 0)}
+                              </span>
+                            </div>
+                          </button>
 
-                        {isExpanded && (
-                          <div className="px-5 pb-4 overflow-x-auto">
-                            <table className="min-w-full border-collapse text-xs font-mono">
-                              <thead className="bg-slate-100 text-slate-700">
-                                <tr>
-                                  <th className="border border-slate-300 px-2 py-1.5 text-center">#</th>
-                                  <th className="border border-slate-300 px-2 py-1.5">{t(language, 'date')}</th>
-                                  <th className="border border-slate-300 px-2 py-1.5">{t(language, 'productName')}</th>
-                                  <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'quantity')}</th>
-                                  <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'price')}</th>
-                                  <th className="border border-slate-300 px-2 py-1.5 text-right bg-slate-200/50">{t(language, 'total')}</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white">
-                                {data.purchases
-                                  .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                  .map((p: any, i: number) => {
-                                    const prod = (useAppStore.getState() as any).products.find((pr: any) => pr.id === p.productId);
-                                    return (
+                          {isExpanded && (
+                            <div className="px-5 pb-4 overflow-x-auto">
+                              <table className="min-w-full border-collapse text-xs font-mono">
+                                <thead className="bg-slate-100 text-slate-700">
+                                  <tr>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-center">#</th>
+                                    <th className="border border-slate-300 px-2 py-1.5">{t(language, 'date')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5">{t(language, 'productName')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'quantity')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'price')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-right bg-slate-200/50">{t(language, 'total')}</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white">
+                                  {data.purchases
+                                    .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                    .map((p: any, i: number) => (
                                       <tr key={p.id} className="hover:bg-blue-50/50">
                                         <td className="border border-slate-200 px-2 py-1 text-center text-slate-400">{i + 1}</td>
                                         <td className="border border-slate-200 px-2 py-1 text-slate-700">{p.date}</td>
-                                        <td className="border border-slate-200 px-2 py-1 font-sans font-medium text-slate-900">{prod?.name || 'N/A'}</td>
+                                        <td className="border border-slate-200 px-2 py-1 font-sans font-medium text-slate-900">{getProductName(p.productId)}</td>
                                         <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{p.quantity}</td>
                                         <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{formatCurrency(p.price)}</td>
                                         <td className="border border-slate-200 px-2 py-1 text-right font-bold text-slate-900 bg-slate-50/50">{formatCurrency(p.total)}</td>
                                       </tr>
-                                    );
-                                  })}
-                              </tbody>
-                              <tfoot className="bg-slate-100">
-                                <tr>
-                                  <td colSpan={5} className="border border-slate-300 px-2 py-1.5 text-right font-bold text-slate-700">
-                                    {language === 'ka' ? 'ჯამი:' : 'Total:'}
-                                  </td>
-                                  <td className="border border-slate-300 px-2 py-1.5 text-right font-black text-slate-900">{formatCurrency(data.totalDebt)}</td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ======= PAYMENTS TAB ======= */}
-      {activeTab === 'payments' && (
-        <div className="bg-white rounded-b-2xl rounded-t-none shadow-sm border border-gray-200 border-t-0 overflow-hidden">
-          
-          {/* Add Payment Button */}
-          <div className="p-4 border-b border-gray-100">
-            <button
-              onClick={() => setShowPaymentForm(!showPaymentForm)}
-              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all shadow-sm active:scale-95"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {language === 'ka' ? 'გადახდის დამატება' : 'Add Payment'}
-            </button>
-          </div>
-
-          {/* Add Payment Form */}
-          {showPaymentForm && (
-            <div className="p-4 bg-green-50 border-b border-green-200">
-              <form onSubmit={handleAddPayment} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
-                <div>
-                  <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</label>
-                  <select
-                    value={paymentForm.supplier}
-                    onChange={(e) => setPaymentForm(p => ({ ...p, supplier: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500 bg-white"
-                  >
-                    <option value="">{language === 'ka' ? 'აირჩიეთ...' : 'Select...'}</option>
-                    {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-green-800 mb-1">{t(language, 'date')}</label>
-                  <input
-                    type="date"
-                    value={paymentForm.date}
-                    onChange={(e) => setPaymentForm(p => ({ ...p, date: e.target.value }))}
-                    required
-                    className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'თანხა' : 'Amount'}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={paymentForm.amount}
-                    onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))}
-                    required
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'შენიშვნა' : 'Note'}</label>
-                  <input
-                    type="text"
-                    value={paymentForm.note}
-                    onChange={(e) => setPaymentForm(p => ({ ...p, note: e.target.value }))}
-                    placeholder={language === 'ka' ? 'არასავალდებულო' : 'Optional'}
-                    className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button type="submit" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors">
-                    {t(language, 'save')}
-                  </button>
-                  <button type="button" onClick={() => setShowPaymentForm(false)} className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* Payments Table */}
-          <div className="overflow-x-auto">
-            {filteredPayments.length === 0 ? (
-              <div className="p-12 text-center">
-                <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-700 font-medium">{language === 'ka' ? 'გადახდები არ მოიძებნა' : 'No payments found'}</p>
-                <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ გადახდა ზემოთ ღილაკით' : 'Add a payment using the button above'}</p>
+                                    ))}
+                                </tbody>
+                                <tfoot className="bg-slate-100">
+                                  <tr>
+                                    <td colSpan={5} className="border border-slate-300 px-2 py-1.5 text-right font-bold text-slate-700">
+                                      {language === 'ka' ? 'ჯამი:' : 'Total:'}
+                                    </td>
+                                    <td className="border border-slate-300 px-2 py-1.5 text-right font-black text-slate-900">{formatCurrency(data.totalDebt)}</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                )}
               </div>
-            ) : (
-              <table className="min-w-full border-collapse text-sm text-left">
-                <thead className="bg-slate-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider w-12">#</th>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{t(language, 'date')}</th>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</th>
-                    <th className="px-4 py-3 text-xs font-bold text-green-600 uppercase tracking-wider text-right">{language === 'ka' ? 'თანხა' : 'Amount'}</th>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'შენიშვნა' : 'Note'}</th>
-                    <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">{t(language, 'actionsShort') || (language === 'ka' ? 'მოქმ.' : 'Actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredPayments
-                    .sort((a: SupplierPayment, b: SupplierPayment) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((pay: SupplierPayment, i: number) => (
-                      <tr key={pay.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-slate-400 font-medium">{i + 1}</td>
-                        <td className="px-4 py-3 text-slate-700 font-medium">{pay.date}</td>
-                        <td className="px-4 py-3 font-bold text-slate-900">{pay.supplier}</td>
-                        <td className="px-4 py-3 text-right font-bold text-green-600">{formatCurrency(pay.amount)}</td>
-                        <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]">{pay.note || '-'}</td>
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex gap-2 justify-center">
-                            <button
-                              onClick={() => openEditPayment(pay)}
-                              className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setItemToDelete(pay.id)}
-                              className="text-red-500 hover:text-red-700 p-1 rounded transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-                <tfoot className="bg-slate-50 border-t border-gray-200">
-                  <tr>
-                    <td colSpan={3} className="px-4 py-3 text-right text-sm font-bold text-slate-700">
-                      {language === 'ka' ? 'ჯამი:' : 'Total:'}
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm font-black text-green-600">
-                      {formatCurrency(filteredPayments.reduce((sum: number, p: SupplierPayment) => sum + p.amount, 0))}
-                    </td>
-                    <td colSpan={2}></td>
-                  </tr>
-                </tfoot>
-              </table>
             )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ======= PAYMENTS TAB ======= */}
+        {activeTab === 'payments' && (
+          <div>
+            {/* Add Payment Button */}
+            <div className="p-4 border-b border-gray-100">
+              <button
+                onClick={() => setShowPaymentForm(!showPaymentForm)}
+                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 transition-all shadow-sm active:scale-95"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {language === 'ka' ? 'გადახდის დამატება' : 'Add Payment'}
+              </button>
+            </div>
+
+            {/* Add Payment Form */}
+            {showPaymentForm && (
+              <div className="p-4 bg-green-50 border-b border-green-200">
+                <form onSubmit={handleAddPayment} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</label>
+                    <select
+                      value={paymentForm.supplier}
+                      onChange={(e) => setPaymentForm(p => ({ ...p, supplier: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500 bg-white"
+                    >
+                      <option value="">{language === 'ka' ? 'აირჩიეთ...' : 'Select...'}</option>
+                      {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-green-800 mb-1">{t(language, 'date')}</label>
+                    <input
+                      type="date"
+                      value={paymentForm.date}
+                      onChange={(e) => setPaymentForm(p => ({ ...p, date: e.target.value }))}
+                      required
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'თანხა' : 'Amount'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={paymentForm.amount}
+                      onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))}
+                      required
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'შენიშვნა' : 'Note'}</label>
+                    <input
+                      type="text"
+                      value={paymentForm.note}
+                      onChange={(e) => setPaymentForm(p => ({ ...p, note: e.target.value }))}
+                      placeholder={language === 'ka' ? 'არასავალდებულო' : 'Optional'}
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="submit" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors">
+                      {t(language, 'save')}
+                    </button>
+                    <button type="button" onClick={() => setShowPaymentForm(false)} className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Payments Table */}
+            <div className="overflow-x-auto">
+              {filteredPayments.length === 0 ? (
+                <div className="p-12 text-center">
+                  <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-700 font-medium">{language === 'ka' ? 'გადახდები არ მოიძებნა' : 'No payments found'}</p>
+                  <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ გადახდა ზემოთ ღილაკით' : 'Add a payment using the button above'}</p>
+                </div>
+              ) : (
+                <table className="min-w-full border-collapse text-sm text-left">
+                  <thead className="bg-slate-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider w-12">#</th>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{t(language, 'date')}</th>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</th>
+                      <th className="px-4 py-3 text-xs font-bold text-green-600 uppercase tracking-wider text-right">{language === 'ka' ? 'თანხა' : 'Amount'}</th>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'შენიშვნა' : 'Note'}</th>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">{language === 'ka' ? 'მოქმ.' : 'Actions'}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredPayments
+                      .sort((a: SupplierPayment, b: SupplierPayment) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((pay: SupplierPayment, i: number) => (
+                        <tr key={pay.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-slate-400 font-medium">{i + 1}</td>
+                          <td className="px-4 py-3 text-slate-700 font-medium">{pay.date}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">{pay.supplier}</td>
+                          <td className="px-4 py-3 text-right font-bold text-green-600">{formatCurrency(pay.amount)}</td>
+                          <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]">{pay.note || '-'}</td>
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex gap-2 justify-center">
+                              <button onClick={() => openEditPayment(pay)} className="text-blue-500 hover:text-blue-700 p-1 rounded transition-colors">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setItemToDelete(pay.id)} className="text-red-500 hover:text-red-700 p-1 rounded transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                  <tfoot className="bg-slate-50 border-t border-gray-200">
+                    <tr>
+                      <td colSpan={3} className="px-4 py-3 text-right text-sm font-bold text-slate-700">
+                        {language === 'ka' ? 'ჯამი:' : 'Total:'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-black text-green-600">
+                        {formatCurrency(filteredPayments.reduce((sum: number, p: SupplierPayment) => sum + p.amount, 0))}
+                      </td>
+                      <td colSpan={2}></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Edit Payment Modal */}
       {editingPayment && (

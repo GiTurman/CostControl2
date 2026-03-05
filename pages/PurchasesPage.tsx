@@ -190,7 +190,7 @@ export const PurchasesPage: React.FC = () => {
           const unitRaw = row[2];
           const qtyRaw = row[3];
           const priceRaw = row[4];
-          const supplierRaw = row[5] || '';
+          const supplierRaw = row[6] || '';
 
           const qty = parseFloat(qtyRaw);
           const price = parseFloat(priceRaw);
