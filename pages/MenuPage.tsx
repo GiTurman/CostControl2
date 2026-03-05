@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Ingredient, Dish } from '../types';
+import { Ingredient, Dish, Department } from '../types';
 import { t, formatCurrency } from '../i18n';
 import { Plus, Download, X, Trash2, Edit2, UtensilsCrossed, ChefHat } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const MenuPage: React.FC = () => {
+  const { department } = useParams<{ department: string }>();
+  const currentDept = (department as Department) || 'restaurant';
   const { language, dishes, products, purchases, addDish, editDish, deleteDish } = useAppStore();
+  
+  const deptDishes = useMemo(() => dishes.filter(d => (d.department || 'restaurant') === currentDept), [dishes, currentDept]);
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === currentDept), [products, currentDept]);
+  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === currentDept), [purchases, currentDept]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDishId, setEditingDishId] = useState<string | null>(null);
@@ -26,7 +33,7 @@ export const MenuPage: React.FC = () => {
   };
 
   const getProductLastPrice = (productId: string): number => {
-    const prodPurchases = purchases.filter(p => p.productId === productId);
+    const prodPurchases = deptPurchases.filter(p => p.productId === productId);
     if (prodPurchases.length === 0) return 0;
     prodPurchases.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     return prodPurchases[0].price;
@@ -93,6 +100,7 @@ export const MenuPage: React.FC = () => {
       category: formData.category.trim() || 'General',
       salePrice: Number(formData.salePrice),
       ingredients: validIngredients,
+      department: currentDept,
     };
 
     if (editingDishId) {
@@ -107,7 +115,7 @@ export const MenuPage: React.FC = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = dishes.map(dish => {
+    const dataToExport = deptDishes.map(dish => {
       const costPrice = calculateCostPrice(dish.ingredients);
       const profit = dish.salePrice - costPrice;
       const margin = dish.salePrice > 0 ? ((profit / dish.salePrice) * 100).toFixed(1) + '%' : '0%';
@@ -137,7 +145,7 @@ export const MenuPage: React.FC = () => {
   };
 
   const getAvailableProducts = (currentIndex: number) => {
-    return products.filter(p => 
+    return deptProducts.filter(p => 
       !dishIngredients.some((ing, i) => i !== currentIndex && ing.productId === p.id)
     );
   };
@@ -188,7 +196,7 @@ export const MenuPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {dishes.length === 0 ? (
+              {deptDishes.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3 text-gray-500">
@@ -201,7 +209,7 @@ export const MenuPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                dishes.map((dish) => {
+                deptDishes.map((dish) => {
                   const cost = calculateCostPrice(dish.ingredients);
                   const profit = dish.salePrice - cost;
                   const margin = dish.salePrice > 0 ? (profit / dish.salePrice) * 100 : 0;

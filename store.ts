@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   Product, Purchase, Sale, Dish, Language, InventoryAudit, Ingredient, ActivityLog,
-  SupplierPayment, BreakfastDayMenu, DayOfWeek, WeeklyBreakfastMenus, BreakfastLog,
-  HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient
+  SupplierPayment, CustomerPayment, BreakfastDayMenu, DayOfWeek, WeeklyBreakfastMenus, BreakfastLog,
+  HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient, Department
 } from './types';
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -28,6 +28,7 @@ interface AppState {
   inventoryAudits: InventoryAudit[];
   activityLogs: ActivityLog[];
   supplierPayments: SupplierPayment[];
+  customerPayments: CustomerPayment[];
   // Breakfast
   breakfastMenus: WeeklyBreakfastMenus;
   breakfastLogs: BreakfastLog[];
@@ -54,9 +55,9 @@ interface AppState {
   editDish: (id: string, dish: Dish) => void;
   deleteDish: (id: string) => void;
   // Purchases
-  addPurchase: (purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }) => void;
-  editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }) => void;
-  bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string }>) => void;
+  addPurchase: (purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }) => void;
+  editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }) => void;
+  bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }>) => void;
   deletePurchase: (id: string) => void;
   // Sales
   addSale: (sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
@@ -68,9 +69,13 @@ interface AppState {
   addSupplierPayment: (payment: Omit<SupplierPayment, 'id'>) => void;
   editSupplierPayment: (id: string, payment: Omit<SupplierPayment, 'id'>) => void;
   deleteSupplierPayment: (id: string) => void;
+  // Customer payments
+  addCustomerPayment: (payment: Omit<CustomerPayment, 'id'>) => void;
+  editCustomerPayment: (id: string, payment: Omit<CustomerPayment, 'id'>) => void;
+  deleteCustomerPayment: (id: string) => void;
   // Breakfast
   saveBreakfastMenu: (day: DayOfWeek, menu: BreakfastDayMenu) => void;
-  logBreakfast: (roomNumber: string, guestCount: number) => void;
+  logBreakfast: (roomNumber: string, guestCount: number, debtor?: string) => void;
   deleteBreakfastLog: (id: string) => void;
   // Housekeeping
   saveHousekeepingBOM: (items: HousekeepingBOMItem[]) => void;
@@ -112,6 +117,7 @@ export const useAppStore = create<AppState>()(
       inventoryAudits: [],
       activityLogs: [],
       supplierPayments: [],
+      customerPayments: [],
       breakfastMenus: defaultWeeklyMenus(),
       breakfastLogs: [],
       housekeepingBOM: [],
@@ -293,18 +299,34 @@ export const useAppStore = create<AppState>()(
         get().addLog('Payment Deleted', `${p?.supplier || 'Unknown'}`);
       },
 
+      // === CUSTOMER PAYMENTS ===
+      addCustomerPayment: (data) => {
+        set((state) => ({ customerPayments: [...state.customerPayments, { id: generateId(), ...data }] }));
+        get().addLog('Customer Payment Added', `${data.customer}: ${data.amount}`);
+      },
+      editCustomerPayment: (id, data) => {
+        set((state) => ({ customerPayments: state.customerPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
+        get().addLog('Customer Payment Edited', `${data.customer}: ${data.amount}`);
+      },
+      deleteCustomerPayment: (id) => {
+        const p = get().customerPayments.find(x => x.id === id);
+        set((state) => ({ customerPayments: state.customerPayments.filter(x => x.id !== id) }));
+        get().addLog('Customer Payment Deleted', `${p?.customer || 'Unknown'}`);
+      },
+
       // === BREAKFAST ===
       saveBreakfastMenu: (day, menu) => {
         set((state) => ({ breakfastMenus: { ...state.breakfastMenus, [day]: menu } }));
         get().addLog('Breakfast Menu Saved', day);
       },
 
-      logBreakfast: (roomNumber, guestCount) => {
+      logBreakfast: (roomNumber, guestCount, debtor) => {
         const state = get();
         const today = new Date().toISOString().split('T')[0];
         const dayOfWeek = getDayOfWeek(today);
         const menu = state.breakfastMenus[dayOfWeek];
         const logId = generateId();
+        const totalRevenue = menu ? menu.pricePerGuest * guestCount : 0;
 
         // Create direct consumptions
         const newConsumptions: DirectConsumption[] = [];
@@ -322,13 +344,13 @@ export const useAppStore = create<AppState>()(
           });
         }
 
-        const newLog: BreakfastLog = { id: logId, date: today, roomNumber, guestCount, dayOfWeek };
+        const newLog: BreakfastLog = { id: logId, date: today, roomNumber, guestCount, dayOfWeek, debtor, totalRevenue };
 
         set((state) => ({
           breakfastLogs: [...state.breakfastLogs, newLog],
           directConsumptions: [...state.directConsumptions, ...newConsumptions],
         }));
-        get().addLog('Breakfast Served', `Room ${roomNumber}, ${guestCount} guests (${dayOfWeek})`);
+        get().addLog('Breakfast Served', `Room ${roomNumber}, ${guestCount} guests (${dayOfWeek})${debtor ? ` to ${debtor}` : ''}`);
       },
 
       deleteBreakfastLog: (id) => {
@@ -414,7 +436,7 @@ export const useAppStore = create<AppState>()(
       clearAllData: () => {
         set({
           products: [], purchases: [], sales: [], dishes: [],
-          inventoryAudits: [], activityLogs: [], supplierPayments: [],
+          inventoryAudits: [], activityLogs: [], supplierPayments: [], customerPayments: [],
           breakfastMenus: defaultWeeklyMenus(), breakfastLogs: [],
           housekeepingBOM: [], rooms: [], housekeepingLogs: [], directConsumptions: [],
         });
@@ -431,6 +453,7 @@ export const useAppStore = create<AppState>()(
           inventoryAudits: parsedData.inventoryAudits || state.inventoryAudits,
           activityLogs: parsedData.activityLogs || state.activityLogs,
           supplierPayments: parsedData.supplierPayments || state.supplierPayments,
+          customerPayments: parsedData.customerPayments || state.customerPayments,
           breakfastMenus: parsedData.breakfastMenus || state.breakfastMenus,
           breakfastLogs: parsedData.breakfastLogs || state.breakfastLogs,
           housekeepingBOM: parsedData.housekeepingBOM || state.housekeepingBOM,
@@ -486,7 +509,7 @@ export const useAppStore = create<AppState>()(
         const sd=[...gD].sort(()=>0.5-Math.random()).slice(0,15);
         sd.forEach((dish,idx)=>{gS.push({id:`SALE-CHEF-${idx}`,date:today,dishId:dish.id,quantity:20,totalRevenue:20*dish.salePrice});});
 
-        set({ products: gP, purchases: gPu, dishes: gD, sales: gS, inventoryAudits: [], supplierPayments: [] });
+        set({ products: gP, purchases: gPu, dishes: gD, sales: gS, inventoryAudits: [], supplierPayments: [], customerPayments: [] });
         get().addLog('System Test', 'Chef Grand Opening data generated successfully');
       },
     }),

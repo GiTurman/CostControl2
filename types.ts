@@ -2,6 +2,8 @@ export type Language = 'ka' | 'en';
 
 export type Unit = string;
 
+export type Department = 'restaurant' | 'bar' | 'breakfast' | 'housekeeping';
+
 export interface Product {
   id: string;
   code?: string;
@@ -9,6 +11,7 @@ export interface Product {
   unit: string;
   category: string;
   minBalance: number;
+  department?: Department;
 }
 
 export interface Purchase {
@@ -19,6 +22,7 @@ export interface Purchase {
   price: number;
   total: number;
   supplier?: string;
+  department?: Department;
 }
 
 export interface Ingredient {
@@ -33,6 +37,7 @@ export interface Dish {
   category: string;
   ingredients: Ingredient[];
   salePrice: number;
+  department?: Department;
 }
 
 export interface Sale {
@@ -41,6 +46,8 @@ export interface Sale {
   dishId: string;
   quantity: number;
   totalRevenue: number;
+  department?: Department;
+  debtor?: string;
 }
 
 export interface InventoryAudit {
@@ -60,6 +67,14 @@ export interface ActivityLog {
 export interface SupplierPayment {
   id: string;
   supplier: string;
+  date: string;
+  amount: number;
+  note: string;
+}
+
+export interface CustomerPayment {
+  id: string;
+  customer: string;
   date: string;
   amount: number;
   note: string;
@@ -88,6 +103,8 @@ export interface BreakfastLog {
   roomNumber: string;
   guestCount: number;
   dayOfWeek: DayOfWeek;
+  debtor?: string;
+  totalRevenue: number;
 }
 
 // ====== HOUSEKEEPING ======

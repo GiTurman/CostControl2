@@ -1,12 +1,17 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Purchase } from '../types';
+import { Purchase, Department } from '../types';
 import { t, formatCurrency } from '../i18n';
 import { Plus, Download, ChevronDown, ChevronRight, Receipt, Upload, PackageOpen, FileSpreadsheet, Trash2, Edit2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const PurchasesPage: React.FC = () => {
+  const { department } = useParams<{ department: string }>();
+  const currentDept = (department as Department) || 'restaurant';
   const { language, addPurchase, editPurchase, bulkAddPurchases, deletePurchase, purchases, products } = useAppStore();
+
+  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === currentDept), [purchases, currentDept]);
   
   // Date state specifically for the bulk Excel import
   const [importDate, setImportDate] = useState(new Date().toISOString().split('T')[0]);
@@ -36,13 +41,13 @@ export const PurchasesPage: React.FC = () => {
   // Collect unique supplier names for datalist suggestions
   const uniqueSuppliers = useMemo(() => {
     const suppliers = new Set<string>();
-    purchases.forEach(p => {
+    deptPurchases.forEach(p => {
       if (p.supplier && p.supplier.trim()) {
         suppliers.add(p.supplier.trim());
       }
     });
     return Array.from(suppliers).sort();
-  }, [purchases]);
+  }, [deptPurchases]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -69,6 +74,7 @@ export const PurchasesPage: React.FC = () => {
       price: Number(formData.price),
       category: formData.category.trim() || 'General',
       supplier: formData.supplier.trim(),
+      department: currentDept,
     });
 
     setFormData((prev) => ({
@@ -97,6 +103,7 @@ export const PurchasesPage: React.FC = () => {
       price: Number(editFormData.price),
       category: editFormData.category.trim() || 'General',
       supplier: editFormData.supplier.trim(),
+      department: currentDept,
     });
 
     setEditingPurchase(null);
@@ -138,7 +145,7 @@ export const PurchasesPage: React.FC = () => {
 
   const handleExport = () => {
     let rowIndex = 1;
-    const sortedPurchases = [...purchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedPurchases = [...deptPurchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     const dataToExport = sortedPurchases.map(p => {
       const info = getProductInfo(p.productId);
@@ -213,6 +220,7 @@ export const PurchasesPage: React.FC = () => {
             price: price,
             category: 'General',
             supplier: supplierRaw.toString().trim(),
+            department: currentDept,
           });
         }
 
@@ -237,14 +245,14 @@ export const PurchasesPage: React.FC = () => {
 
   const groupedPurchases = useMemo(() => {
     const groups: Record<string, Purchase[]> = {};
-    const sortedPurchases = [...purchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedPurchases = [...deptPurchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     sortedPurchases.forEach(p => {
       if (!groups[p.date]) groups[p.date] = [];
       groups[p.date].push(p);
     });
     return groups;
-  }, [purchases]);
+  }, [deptPurchases]);
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">

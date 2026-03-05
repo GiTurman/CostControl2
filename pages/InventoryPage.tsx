@@ -1,10 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { Department } from '../types';
 import { t } from '../i18n';
 import { Calendar, Download, Boxes, Save, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const InventoryPage: React.FC = () => {
+  const { department } = useParams<{ department: string }>();
+  const currentDept = (department as Department) || 'restaurant';
   const { language, products, purchases, sales, dishes, inventoryAudits, saveInventoryAudit, directConsumptions = [] } = useAppStore() as any;
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [actualBalances, setActualBalances] = useState<Record<string, string>>({});
@@ -47,12 +51,14 @@ export const InventoryPage: React.FC = () => {
     // 2. Filter records only within the current "period" 
     // (after lastAuditDate up to selectedDate)
     const windowPurchases = purchases.filter(p => {
+      if ((p.department || 'restaurant') !== currentDept) return false;
       if (p.date > selectedDate) return false;
       if (lastAuditDate && p.date <= lastAuditDate) return false;
       return true;
     });
 
     const windowSales = sales.filter(s => {
+      if ((s.department || 'restaurant') !== currentDept) return false;
       if (s.date > selectedDate) return false;
       if (lastAuditDate && s.date <= lastAuditDate) return false;
       return true;
@@ -78,6 +84,7 @@ export const InventoryPage: React.FC = () => {
 
     // 4b. Add direct consumptions (breakfast & housekeeping)
     const windowDirect = (directConsumptions || []).filter((dc: any) => {
+      if ((dc.department || 'restaurant') !== currentDept) return false;
       if (dc.date > selectedDate) return false;
       if (lastAuditDate && dc.date <= lastAuditDate) return false;
       return true;
@@ -86,7 +93,9 @@ export const InventoryPage: React.FC = () => {
       consumedMap[dc.productId] = (consumedMap[dc.productId] || 0) + dc.quantity;
     });
 
-    return products.map((prod, index) => {
+    const deptProducts = products.filter(p => (p.department || 'restaurant') === currentDept);
+
+    return deptProducts.map((prod, index) => {
       // 5. Build the row data
       const startingBalance = lastAudit && lastAudit.balances[prod.id] !== undefined 
         ? lastAudit.balances[prod.id] 

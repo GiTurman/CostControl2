@@ -41,6 +41,7 @@ export const BreakfastPage: React.FC = () => {
   // --- POS STATE (From SalesPage logic) ---
   const [checkinRoom, setCheckinRoom] = useState('');
   const [checkinGuests, setCheckinGuests] = useState('');
+  const [checkinDebtor, setCheckinDebtor] = useState('');
 
   // --- HELPER FUNCTIONS (From MenuPage) ---
   const getGrossQuantity = (netQuantity: number, lossPercentage: number = 0): number => {
@@ -71,9 +72,10 @@ export const BreakfastPage: React.FC = () => {
   const handleProcessBreakfast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!checkinRoom || !checkinGuests) return;
-    logBreakfast(checkinRoom, Number(checkinGuests));
+    logBreakfast(checkinRoom, Number(checkinGuests), checkinDebtor.trim() || undefined);
     setCheckinRoom('');
     setCheckinGuests('');
+    setCheckinDebtor('');
   };
 
   const groupedLogs = useMemo(() => {
@@ -124,6 +126,10 @@ export const BreakfastPage: React.FC = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'სტუმრები' : 'Guests'}</label>
                   <input type="number" min="1" required value={checkinGuests} onChange={e => setCheckinGuests(e.target.value)} className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm" />
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'კომპანია / დებიტორი (არასავალდებულო)' : 'Company / Debtor (Optional)'}</label>
+                  <input type="text" value={checkinDebtor} onChange={e => setCheckinDebtor(e.target.value)} placeholder={language === 'ka' ? 'მაგ. Booking.com' : 'e.g. Booking.com'} className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm" />
+                </div>
                 <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 flex justify-between items-center">
                    <span className="text-sm font-medium text-amber-800">{language === 'ka' ? 'ჯამური შემოსავალი' : 'Revenue'}:</span>
                    <span className="text-xl font-bold text-amber-900">{formatCurrency((Number(checkinGuests) || 0) * (breakfastMenus[selectedDay]?.pricePerGuest || 0))}</span>
@@ -158,6 +164,7 @@ export const BreakfastPage: React.FC = () => {
                           <thead className="bg-gray-50 text-[10px] uppercase font-bold text-gray-500">
                             <tr>
                               <th className="px-4 py-3 text-left">{language === 'ka' ? 'ოთახი' : 'Room'}</th>
+                              <th className="px-4 py-3 text-left">{language === 'ka' ? 'დებიტორი' : 'Debtor'}</th>
                               <th className="px-4 py-3 text-right">{language === 'ka' ? 'სტუმრები' : 'Guests'}</th>
                               <th className="px-4 py-3 text-right">{language === 'ka' ? 'დღე' : 'Day'}</th>
                               <th className="px-4 py-3 text-right w-10"></th>
@@ -167,6 +174,7 @@ export const BreakfastPage: React.FC = () => {
                             {logs.map(log => (
                               <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                                 <td className="px-4 py-3 font-bold text-gray-900">Room {log.roomNumber}</td>
+                                <td className="px-4 py-3 text-gray-600">{log.debtor || '-'}</td>
                                 <td className="px-4 py-3 text-right text-gray-600">{log.guestCount}</td>
                                 <td className="px-4 py-3 text-right text-gray-400 text-xs uppercase">{log.dayOfWeek}</td>
                                 <td className="px-4 py-3 text-right">

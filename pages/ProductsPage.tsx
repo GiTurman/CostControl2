@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
+import { Department } from '../types';
 import { t } from '../i18n';
 import { Download, Search, Check, Edit2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const ProductsPage: React.FC = () => {
+  const { department } = useParams<{ department: string }>();
+  const currentDept = (department as Department) || 'restaurant';
   const { language, products, updateProductMinBalance } = useAppStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
 
-  const filteredProducts = products.filter(p => 
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === currentDept), [products, currentDept]);
+
+  const filteredProducts = deptProducts.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.category.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -21,7 +27,7 @@ export const ProductsPage: React.FC = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = products.map(p => ({
+    const dataToExport = deptProducts.map(p => ({
       [t(language, 'productName')]: p.name,
       [t(language, 'category')]: p.category,
       [t(language, 'unit')]: formatUnit(p.unit),

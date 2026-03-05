@@ -5,7 +5,7 @@ import { t, formatCurrency } from '../i18n';
 import { 
   Landmark, Calendar, Search, Download, Plus, Edit2, Trash2, X, 
   CreditCard, FileText, Brain, ChevronDown, ChevronRight, Filter,
-  CheckCircle, Clock
+  CheckCircle, Clock, Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -17,13 +17,26 @@ export interface SupplierPayment {
   note: string;
 }
 
+export interface CustomerPayment {
+  id: string;
+  customer: string;
+  date: string;
+  amount: number;
+  note: string;
+}
+
 export const DebtorPage: React.FC = () => {
-  const { language, purchases, products, supplierPayments = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment } = useAppStore() as any;
+  const { 
+    language, purchases, products, supplierPayments = [], customerPayments = [], 
+    breakfastLogs = [], sales = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment,
+    addCustomerPayment, editCustomerPayment, deleteCustomerPayment
+  } = useAppStore() as any;
 
   // Read tab from URL query param
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState<'debts' | 'payments'>(tabFromUrl === 'payments' ? 'payments' : 'debts');
+  const [viewMode, setViewMode] = useState<'suppliers' | 'customers'>('suppliers');
 
   // Sync tab with URL
   useEffect(() => {
@@ -64,7 +77,7 @@ export const DebtorPage: React.FC = () => {
     return p?.name || 'N/A';
   };
 
-  // ====== Derived Data ======
+  // ====== Derived Data (Suppliers) ======
 
   // Unique suppliers from purchases (only valid string names, not numbers)
   const allSuppliers = useMemo(() => {
@@ -151,20 +164,125 @@ export const DebtorPage: React.FC = () => {
       totalDebt += v.totalDebt;
       totalPaid += v.totalPaid;
     });
-    return { totalDebt, totalPaid, balance: totalDebt - totalPaid, supplierCount: allSuppliers.length };
+    return { totalDebt, totalPaid, balance: totalDebt - totalPaid, count: allSuppliers.length };
   }, [netBalances, allSuppliers]);
+
+  // ====== Derived Data (Customers) ======
+
+  const allCustomers = useMemo(() => {
+    const set = new Set<string>();
+    breakfastLogs.forEach((l: any) => {
+      if (l.debtor && typeof l.debtor === 'string' && l.debtor.trim()) {
+        set.add(l.debtor.trim());
+      }
+    });
+    sales.forEach((s: any) => {
+      if (s.debtor && typeof s.debtor === 'string' && s.debtor.trim()) {
+        set.add(s.debtor.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [breakfastLogs, sales]);
+
+  const customerDebts = useMemo(() => {
+    const map: Record<string, { logs: any[]; totalDebt: number }> = {};
+
+    const processLog = (l: any, amountField: string) => {
+      if (!l.debtor || typeof l.debtor !== 'string' || !l.debtor.trim()) return;
+      const customer = l.debtor.trim();
+
+      if (dateFrom && l.date < dateFrom) return;
+      if (dateTo && l.date > dateTo) return;
+      if (searchSupplier && !customer.toLowerCase().includes(searchSupplier.toLowerCase())) return;
+      if (selectedSupplierFilter && customer !== selectedSupplierFilter) return;
+
+      if (!map[customer]) map[customer] = { logs: [], totalDebt: 0 };
+      map[customer].logs.push(l);
+      map[customer].totalDebt += (l[amountField] || 0);
+    };
+
+    breakfastLogs.forEach((l: any) => processLog(l, 'totalRevenue'));
+    sales.forEach((s: any) => processLog(s, 'totalRevenue'));
+
+    return map;
+  }, [breakfastLogs, sales, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
+
+  const filteredCustomerPayments = useMemo(() => {
+    return (customerPayments || []).filter((pay: CustomerPayment) => {
+      if (dateFrom && pay.date < dateFrom) return false;
+      if (dateTo && pay.date > dateTo) return false;
+      if (searchSupplier && !pay.customer.toLowerCase().includes(searchSupplier.toLowerCase())) return false;
+      if (selectedSupplierFilter && pay.customer !== selectedSupplierFilter) return false;
+      return true;
+    });
+  }, [customerPayments, dateFrom, dateTo, searchSupplier, selectedSupplierFilter]);
+
+  const totalPaymentsByCustomer = useMemo(() => {
+    const map: Record<string, number> = {};
+    (customerPayments || []).forEach((pay: CustomerPayment) => {
+      map[pay.customer] = (map[pay.customer] || 0) + pay.amount;
+    });
+    return map;
+  }, [customerPayments]);
+
+  const allTimeDebtByCustomer = useMemo(() => {
+    const map: Record<string, number> = {};
+    breakfastLogs.forEach((l: any) => {
+      if (!l.debtor || typeof l.debtor !== 'string' || !l.debtor.trim()) return;
+      const customer = l.debtor.trim();
+      map[customer] = (map[customer] || 0) + (l.totalRevenue || 0);
+    });
+    sales.forEach((s: any) => {
+      if (!s.debtor || typeof s.debtor !== 'string' || !s.debtor.trim()) return;
+      const customer = s.debtor.trim();
+      map[customer] = (map[customer] || 0) + (s.totalRevenue || 0);
+    });
+    return map;
+  }, [breakfastLogs, sales]);
+
+  const netCustomerBalances = useMemo(() => {
+    const result: Record<string, { totalDebt: number; totalPaid: number; balance: number }> = {};
+    allCustomers.forEach(c => {
+      const debt = allTimeDebtByCustomer[c] || 0;
+      const paid = totalPaymentsByCustomer[c] || 0;
+      result[c] = { totalDebt: debt, totalPaid: paid, balance: debt - paid };
+    });
+    return result;
+  }, [allCustomers, allTimeDebtByCustomer, totalPaymentsByCustomer]);
+
+  const customerSummary = useMemo(() => {
+    let totalDebt = 0;
+    let totalPaid = 0;
+    Object.values(netCustomerBalances).forEach(v => {
+      totalDebt += v.totalDebt;
+      totalPaid += v.totalPaid;
+    });
+    return { totalDebt, totalPaid, balance: totalDebt - totalPaid, count: allCustomers.length };
+  }, [netCustomerBalances, allCustomers]);
+
 
   // ====== Handlers ======
 
   const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!paymentForm.supplier || !paymentForm.amount) return;
-    addSupplierPayment({
-      supplier: paymentForm.supplier.trim(),
-      date: paymentForm.date,
-      amount: Number(paymentForm.amount),
-      note: paymentForm.note.trim(),
-    });
+    
+    if (viewMode === 'suppliers') {
+      addSupplierPayment({
+        supplier: paymentForm.supplier.trim(),
+        date: paymentForm.date,
+        amount: Number(paymentForm.amount),
+        note: paymentForm.note.trim(),
+      });
+    } else {
+      addCustomerPayment({
+        customer: paymentForm.supplier.trim(),
+        date: paymentForm.date,
+        amount: Number(paymentForm.amount),
+        note: paymentForm.note.trim(),
+      });
+    }
+    
     setPaymentForm({ supplier: '', date: new Date().toISOString().split('T')[0], amount: '', note: '' });
     setShowPaymentForm(false);
     setAlertMessage(language === 'ka' ? 'გადახდა წარმატებით დაემატა' : 'Payment added successfully');
@@ -173,19 +291,29 @@ export const DebtorPage: React.FC = () => {
   const handleEditPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPayment || !editPaymentForm.supplier || !editPaymentForm.amount) return;
-    editSupplierPayment(editingPayment.id, {
-      supplier: editPaymentForm.supplier.trim(),
-      date: editPaymentForm.date,
-      amount: Number(editPaymentForm.amount),
-      note: editPaymentForm.note.trim(),
-    });
+    
+    if (viewMode === 'suppliers') {
+      editSupplierPayment(editingPayment.id, {
+        supplier: editPaymentForm.supplier.trim(),
+        date: editPaymentForm.date,
+        amount: Number(editPaymentForm.amount),
+        note: editPaymentForm.note.trim(),
+      });
+    } else {
+      editCustomerPayment(editingPayment.id, {
+        customer: editPaymentForm.supplier.trim(),
+        date: editPaymentForm.date,
+        amount: Number(editPaymentForm.amount),
+        note: editPaymentForm.note.trim(),
+      });
+    }
     setEditingPayment(null);
   };
 
-  const openEditPayment = (payment: SupplierPayment) => {
+  const openEditPayment = (payment: any) => {
     setEditingPayment(payment);
     setEditPaymentForm({
-      supplier: payment.supplier,
+      supplier: payment.supplier || payment.customer,
       date: payment.date,
       amount: payment.amount.toString(),
       note: payment.note || '',
@@ -194,7 +322,11 @@ export const DebtorPage: React.FC = () => {
 
   const confirmDeletePayment = () => {
     if (itemToDelete) {
-      deleteSupplierPayment(itemToDelete);
+      if (viewMode === 'suppliers') {
+        deleteSupplierPayment(itemToDelete);
+      } else {
+        deleteCustomerPayment(itemToDelete);
+      }
       setItemToDelete(null);
     }
   };
@@ -211,11 +343,11 @@ export const DebtorPage: React.FC = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = allSuppliers.map(s => {
-      const bal = netBalances[s];
+    const dataToExport = (viewMode === 'suppliers' ? allSuppliers : allCustomers).map(s => {
+      const bal = viewMode === 'suppliers' ? netBalances[s] : netCustomerBalances[s];
       return {
-        [language === 'ka' ? 'მომწოდებელი' : 'Supplier']: s,
-        [language === 'ka' ? 'ჯამ. შესყიდვა' : 'Total Purchases']: Number(bal.totalDebt.toFixed(2)),
+        [language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია/დებიტორი') : (viewMode === 'suppliers' ? 'Supplier' : 'Customer')]: s,
+        [language === 'ka' ? (viewMode === 'suppliers' ? 'ჯამ. შესყიდვა' : 'ჯამ. გაყიდვა') : (viewMode === 'suppliers' ? 'Total Purchases' : 'Total Sales')]: Number(bal.totalDebt.toFixed(2)),
         [language === 'ka' ? 'ჯამ. გადახდილი' : 'Total Paid']: Number(bal.totalPaid.toFixed(2)),
         [language === 'ka' ? 'ნაშთი (ვალი)' : 'Balance (Debt)']: Number(bal.balance.toFixed(2)),
         [language === 'ka' ? 'სტატუსი' : 'Status']: bal.balance <= 0.01 
@@ -227,7 +359,7 @@ export const DebtorPage: React.FC = () => {
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, language === 'ka' ? 'დებიტორი' : 'Debtors');
-    XLSX.writeFile(workbook, `Debtors_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `Debtors_${viewMode}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   // ====== AI Analysis ======
@@ -235,44 +367,50 @@ export const DebtorPage: React.FC = () => {
     const lines: string[] = [];
     const overdue: string[] = [];
     const highDebt: string[] = [];
-    let maxDebtSupplier = '';
+    let maxDebtEntity = '';
     let maxDebt = 0;
 
-    Object.entries(netBalances).forEach(([supplier, bal]) => {
+    const currentBalances = viewMode === 'suppliers' ? netBalances : netCustomerBalances;
+    const currentList = viewMode === 'suppliers' ? allSuppliers : allCustomers;
+    const currentSummary = viewMode === 'suppliers' ? summary : customerSummary;
+    const entityNameKa = viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია';
+    const entityNameEn = viewMode === 'suppliers' ? 'suppliers' : 'customers';
+
+    Object.entries(currentBalances).forEach(([entity, bal]) => {
       if (bal.balance > maxDebt) {
         maxDebt = bal.balance;
-        maxDebtSupplier = supplier;
+        maxDebtEntity = entity;
       }
-      if (bal.balance > 5000) highDebt.push(supplier);
-      if (bal.balance > 0 && bal.totalPaid === 0) overdue.push(supplier);
+      if (bal.balance > 5000) highDebt.push(entity);
+      if (bal.balance > 0 && bal.totalPaid === 0) overdue.push(entity);
     });
 
     if (language === 'ka') {
-      lines.push(`📊 სულ ${allSuppliers.length} მომწოდებელი, ჯამური ვალი: ${formatCurrency(summary.balance)}`);
-      if (maxDebtSupplier) lines.push(`⚠️ ყველაზე დიდი ვალი: "${maxDebtSupplier}" — ${formatCurrency(maxDebt)}`);
-      if (highDebt.length > 0) lines.push(`🔴 მაღალი ვალის მქონე მომწოდებლები (>5000): ${highDebt.join(', ')}`);
+      lines.push(`📊 სულ ${currentList.length} ${entityNameKa}, ჯამური ვალი: ${formatCurrency(currentSummary.balance)}`);
+      if (maxDebtEntity) lines.push(`⚠️ ყველაზე დიდი ვალი: "${maxDebtEntity}" — ${formatCurrency(maxDebt)}`);
+      if (highDebt.length > 0) lines.push(`🔴 მაღალი ვალის მქონე ${entityNameKa}ები (>5000): ${highDebt.join(', ')}`);
       if (overdue.length > 0) lines.push(`⏰ არცერთი გადახდა არ განხორციელებულა: ${overdue.join(', ')}`);
-      if (summary.balance <= 0) lines.push('✅ ყველა მომწოდებელთან ვალი დაფარულია!');
-      const paidPercent = summary.totalDebt > 0 ? ((summary.totalPaid / summary.totalDebt) * 100).toFixed(1) : '0';
-      lines.push(`💰 გადახდის პროცენტი: ${paidPercent}% (${formatCurrency(summary.totalPaid)} / ${formatCurrency(summary.totalDebt)})`);
+      if (currentSummary.balance <= 0) lines.push(`✅ ყველა ${entityNameKa}სთან ვალი დაფარულია!`);
+      const paidPercent = currentSummary.totalDebt > 0 ? ((currentSummary.totalPaid / currentSummary.totalDebt) * 100).toFixed(1) : '0';
+      lines.push(`💰 გადახდის პროცენტი: ${paidPercent}% (${formatCurrency(currentSummary.totalPaid)} / ${formatCurrency(currentSummary.totalDebt)})`);
       if (Number(paidPercent) < 50) {
         lines.push('💡 რეკომენდაცია: გადახდის პროცენტი 50%-ზე ნაკლებია. გადახედეთ გადახდის გრაფიკს.');
       }
     } else {
-      lines.push(`📊 Total ${allSuppliers.length} suppliers, outstanding balance: ${formatCurrency(summary.balance)}`);
-      if (maxDebtSupplier) lines.push(`⚠️ Highest debt: "${maxDebtSupplier}" — ${formatCurrency(maxDebt)}`);
-      if (highDebt.length > 0) lines.push(`🔴 High debt suppliers (>5000): ${highDebt.join(', ')}`);
+      lines.push(`📊 Total ${currentList.length} ${entityNameEn}, outstanding balance: ${formatCurrency(currentSummary.balance)}`);
+      if (maxDebtEntity) lines.push(`⚠️ Highest debt: "${maxDebtEntity}" — ${formatCurrency(maxDebt)}`);
+      if (highDebt.length > 0) lines.push(`🔴 High debt ${entityNameEn} (>5000): ${highDebt.join(', ')}`);
       if (overdue.length > 0) lines.push(`⏰ No payments made yet: ${overdue.join(', ')}`);
-      if (summary.balance <= 0) lines.push('✅ All supplier debts are settled!');
-      const paidPercent = summary.totalDebt > 0 ? ((summary.totalPaid / summary.totalDebt) * 100).toFixed(1) : '0';
-      lines.push(`💰 Payment ratio: ${paidPercent}% (${formatCurrency(summary.totalPaid)} / ${formatCurrency(summary.totalDebt)})`);
+      if (currentSummary.balance <= 0) lines.push(`✅ All ${entityNameEn} debts are settled!`);
+      const paidPercent = currentSummary.totalDebt > 0 ? ((currentSummary.totalPaid / currentSummary.totalDebt) * 100).toFixed(1) : '0';
+      lines.push(`💰 Payment ratio: ${paidPercent}% (${formatCurrency(currentSummary.totalPaid)} / ${formatCurrency(currentSummary.totalDebt)})`);
       if (Number(paidPercent) < 50) {
         lines.push('💡 Recommendation: Payment ratio is below 50%. Consider reviewing your payment schedule.');
       }
     }
 
     return lines;
-  }, [netBalances, allSuppliers, summary, language]);
+  }, [netBalances, netCustomerBalances, allSuppliers, allCustomers, summary, customerSummary, language, viewMode]);
 
   // ====== Render ======
   return (
@@ -286,13 +424,32 @@ export const DebtorPage: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-gray-900">
-              {language === 'ka' ? 'დებიტორი / კრედიტორი' : 'Accounts Payable'}
+              {language === 'ka' ? 'დებიტორი / კრედიტორი' : 'Accounts Payable / Receivable'}
             </h2>
             <p className="text-sm text-gray-500 mt-0.5">
-              {language === 'ka' ? 'მომწოდებლების ვალების და გადახდების მართვა' : 'Manage supplier debts and payments'}
+              {language === 'ka' ? 'მომწოდებლების და კომპანიების ვალების მართვა' : 'Manage supplier and customer debts'}
             </p>
           </div>
         </div>
+        
+        {/* View Mode Toggle */}
+        <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner mx-auto lg:mx-0">
+          <button 
+            onClick={() => { setViewMode('suppliers'); clearFilters(); }} 
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'suppliers' ? 'bg-white shadow-sm text-purple-700' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Landmark className="w-4 h-4" />
+            {language === 'ka' ? 'კრედიტორები (მომწოდებლები)' : 'Creditors (Suppliers)'}
+          </button>
+          <button 
+            onClick={() => { setViewMode('customers'); clearFilters(); }} 
+            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${viewMode === 'customers' ? 'bg-white shadow-sm text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Users className="w-4 h-4" />
+            {language === 'ka' ? 'დებიტორები (კომპანიები)' : 'Debtors (Customers)'}
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setShowAiAnalysis(!showAiAnalysis)}
@@ -329,20 +486,24 @@ export const DebtorPage: React.FC = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{language === 'ka' ? 'მომწოდებლები' : 'Suppliers'}</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{summary.supplierCount}</p>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            {language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებლები' : 'კომპანიები') : (viewMode === 'suppliers' ? 'Suppliers' : 'Customers')}
+          </p>
+          <p className="text-2xl font-black text-gray-900 mt-1">{viewMode === 'suppliers' ? summary.count : customerSummary.count}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{language === 'ka' ? 'ჯამ. შესყიდვა' : 'Total Purchases'}</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{formatCurrency(summary.totalDebt)}</p>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+            {language === 'ka' ? (viewMode === 'suppliers' ? 'ჯამ. შესყიდვა' : 'ჯამ. გაყიდვა') : (viewMode === 'suppliers' ? 'Total Purchases' : 'Total Sales')}
+          </p>
+          <p className="text-2xl font-black text-gray-900 mt-1">{formatCurrency(viewMode === 'suppliers' ? summary.totalDebt : customerSummary.totalDebt)}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200">
           <p className="text-xs font-bold text-green-600 uppercase tracking-wider">{language === 'ka' ? 'გადახდილი' : 'Paid'}</p>
-          <p className="text-2xl font-black text-green-600 mt-1">{formatCurrency(summary.totalPaid)}</p>
+          <p className="text-2xl font-black text-green-600 mt-1">{formatCurrency(viewMode === 'suppliers' ? summary.totalPaid : customerSummary.totalPaid)}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-red-200 bg-red-50/50">
           <p className="text-xs font-bold text-red-600 uppercase tracking-wider">{language === 'ka' ? 'ნაშთი (ვალი)' : 'Outstanding'}</p>
-          <p className="text-2xl font-black text-red-600 mt-1">{formatCurrency(summary.balance)}</p>
+          <p className="text-2xl font-black text-red-600 mt-1">{formatCurrency(viewMode === 'suppliers' ? summary.balance : customerSummary.balance)}</p>
         </div>
       </div>
 
@@ -362,7 +523,7 @@ export const DebtorPage: React.FC = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder={language === 'ka' ? 'მომწოდებლის ძებნა...' : 'Search supplier...'}
+              placeholder={language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებლის ძებნა...' : 'კომპანიის ძებნა...') : (viewMode === 'suppliers' ? 'Search supplier...' : 'Search customer...')}
               value={searchSupplier}
               onChange={(e) => setSearchSupplier(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500"
@@ -373,8 +534,8 @@ export const DebtorPage: React.FC = () => {
             onChange={(e) => setSelectedSupplierFilter(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-brand-500 focus:border-brand-500 bg-white"
           >
-            <option value="">{language === 'ka' ? 'ყველა მომწოდებელი' : 'All Suppliers'}</option>
-            {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+            <option value="">{language === 'ka' ? (viewMode === 'suppliers' ? 'ყველა მომწოდებელი' : 'ყველა კომპანია') : (viewMode === 'suppliers' ? 'All Suppliers' : 'All Customers')}</option>
+            {(viewMode === 'suppliers' ? allSuppliers : allCustomers).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
           <div className="relative">
             <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -424,30 +585,30 @@ export const DebtorPage: React.FC = () => {
         {/* ======= DEBTS TAB ======= */}
         {activeTab === 'debts' && (
           <div>
-            {allSuppliers.length === 0 ? (
+            {(viewMode === 'suppliers' ? allSuppliers : allCustomers).length === 0 ? (
               <div className="p-12 text-center">
                 <Landmark className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-700 font-medium">{language === 'ka' ? 'მომწოდებლები არ მოიძებნა' : 'No suppliers found'}</p>
-                <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ მომწოდებლის სახელი შესყიდვებში' : 'Add supplier names in Purchases'}</p>
+                <p className="text-gray-700 font-medium">{language === 'ka' ? 'ჩანაწერები არ მოიძებნა' : 'No records found'}</p>
+                <p className="text-sm text-gray-500 mt-1">{language === 'ka' ? 'დაამატეთ შესაბამისი ჩანაწერები' : 'Add relevant records'}</p>
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {Object.entries(supplierDebts).length === 0 ? (
+                {Object.entries(viewMode === 'suppliers' ? supplierDebts : customerDebts).length === 0 ? (
                   <div className="p-8 text-center text-gray-500 text-sm">
                     {language === 'ka' ? 'არჩეული ფილტრებით მონაცემები არ მოიძებნა' : 'No data found for selected filters'}
                   </div>
                 ) : (
-                  Object.entries(supplierDebts)
+                  Object.entries(viewMode === 'suppliers' ? supplierDebts : customerDebts)
                     .sort((a, b) => b[1].totalDebt - a[1].totalDebt)
-                    .map(([supplier, data]) => {
-                      const isExpanded = expandedSuppliers[supplier];
-                      const bal = netBalances[supplier];
+                    .map(([entityName, data]) => {
+                      const isExpanded = expandedSuppliers[entityName];
+                      const bal = viewMode === 'suppliers' ? netBalances[entityName] : netCustomerBalances[entityName];
                       const isSettled = bal && bal.balance <= 0.01;
 
                       return (
-                        <div key={supplier}>
+                        <div key={entityName}>
                           <button
-                            onClick={() => toggleSupplier(supplier)}
+                            onClick={() => toggleSupplier(entityName)}
                             className="w-full px-5 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
                           >
                             <div className="flex items-center gap-3">
@@ -458,13 +619,13 @@ export const DebtorPage: React.FC = () => {
                                 ) : (
                                   <Clock className="w-4 h-4 text-amber-500" />
                                 )}
-                                <span className="font-bold text-gray-900 text-sm">{supplier}</span>
+                                <span className="font-bold text-gray-900 text-sm">{entityName}</span>
                               </div>
-                              <span className="text-xs text-gray-400">({data.purchases.length} {language === 'ka' ? 'ჩანაწერი' : 'records'})</span>
+                              <span className="text-xs text-gray-400">({viewMode === 'suppliers' ? data.purchases.length : data.logs.length} {language === 'ka' ? 'ჩანაწერი' : 'records'})</span>
                             </div>
                             <div className="flex items-center gap-4 text-sm">
-                              <span className="text-gray-500">{language === 'ka' ? 'შესყიდვა' : 'Purchased'}: <strong className="text-gray-800">{formatCurrency(data.totalDebt)}</strong></span>
-                              <span className="text-green-600">{language === 'ka' ? 'გადახდილი' : 'Paid'}: <strong>{formatCurrency(totalPaymentsBySupplier[supplier] || 0)}</strong></span>
+                              <span className="text-gray-500">{language === 'ka' ? (viewMode === 'suppliers' ? 'შესყიდვა' : 'გაყიდვა') : (viewMode === 'suppliers' ? 'Purchased' : 'Sold')}: <strong className="text-gray-800">{formatCurrency(data.totalDebt)}</strong></span>
+                              <span className="text-green-600">{language === 'ka' ? 'გადახდილი' : 'Paid'}: <strong>{formatCurrency((viewMode === 'suppliers' ? totalPaymentsBySupplier : totalPaymentsByCustomer)[entityName] || 0)}</strong></span>
                               <span className={`font-black ${isSettled ? 'text-green-600' : 'text-red-600'}`}>
                                 {language === 'ka' ? 'ვალი' : 'Owed'}: {formatCurrency(bal?.balance || 0)}
                               </span>
@@ -478,23 +639,25 @@ export const DebtorPage: React.FC = () => {
                                   <tr>
                                     <th className="border border-slate-300 px-2 py-1.5 text-center">#</th>
                                     <th className="border border-slate-300 px-2 py-1.5">{t(language, 'date')}</th>
-                                    <th className="border border-slate-300 px-2 py-1.5">{t(language, 'productName')}</th>
-                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'quantity')}</th>
-                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{t(language, 'price')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5">{viewMode === 'suppliers' ? t(language, 'productName') : (language === 'ka' ? 'დეტალები' : 'Details')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{viewMode === 'suppliers' ? t(language, 'quantity') : (language === 'ka' ? 'სტუმრები' : 'Guests')}</th>
+                                    <th className="border border-slate-300 px-2 py-1.5 text-right">{viewMode === 'suppliers' ? t(language, 'price') : ''}</th>
                                     <th className="border border-slate-300 px-2 py-1.5 text-right bg-slate-200/50">{t(language, 'total')}</th>
                                   </tr>
                                 </thead>
                                 <tbody className="bg-white">
-                                  {data.purchases
+                                  {(viewMode === 'suppliers' ? data.purchases : data.logs)
                                     .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                     .map((p: any, i: number) => (
                                       <tr key={p.id} className="hover:bg-blue-50/50">
                                         <td className="border border-slate-200 px-2 py-1 text-center text-slate-400">{i + 1}</td>
                                         <td className="border border-slate-200 px-2 py-1 text-slate-700">{p.date}</td>
-                                        <td className="border border-slate-200 px-2 py-1 font-sans font-medium text-slate-900">{getProductName(p.productId)}</td>
-                                        <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{p.quantity}</td>
-                                        <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{formatCurrency(p.price)}</td>
-                                        <td className="border border-slate-200 px-2 py-1 text-right font-bold text-slate-900 bg-slate-50/50">{formatCurrency(p.total)}</td>
+                                        <td className="border border-slate-200 px-2 py-1 font-sans font-medium text-slate-900">
+                                          {viewMode === 'suppliers' ? getProductName(p.productId) : `Room ${p.roomNumber} (${p.dayOfWeek})`}
+                                        </td>
+                                        <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{viewMode === 'suppliers' ? p.quantity : p.guestCount}</td>
+                                        <td className="border border-slate-200 px-2 py-1 text-right text-slate-700">{viewMode === 'suppliers' ? formatCurrency(p.price) : ''}</td>
+                                        <td className="border border-slate-200 px-2 py-1 text-right font-bold text-slate-900 bg-slate-50/50">{formatCurrency(viewMode === 'suppliers' ? p.total : (p.totalRevenue || 0))}</td>
                                       </tr>
                                     ))}
                                 </tbody>
@@ -537,7 +700,7 @@ export const DebtorPage: React.FC = () => {
               <div className="p-4 bg-green-50 border-b border-green-200">
                 <form onSubmit={handleAddPayment} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                   <div>
-                    <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</label>
+                    <label className="block text-xs font-bold text-green-800 mb-1">{language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია') : (viewMode === 'suppliers' ? 'Supplier' : 'Customer')}</label>
                     <select
                       value={paymentForm.supplier}
                       onChange={(e) => setPaymentForm(p => ({ ...p, supplier: e.target.value }))}
@@ -545,7 +708,7 @@ export const DebtorPage: React.FC = () => {
                       className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500 bg-white"
                     >
                       <option value="">{language === 'ka' ? 'აირჩიეთ...' : 'Select...'}</option>
-                      {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                      {(viewMode === 'suppliers' ? allSuppliers : allCustomers).map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </div>
                   <div>
@@ -595,7 +758,7 @@ export const DebtorPage: React.FC = () => {
 
             {/* Payments Table */}
             <div className="overflow-x-auto">
-              {filteredPayments.length === 0 ? (
+              {(viewMode === 'suppliers' ? filteredPayments : filteredCustomerPayments).length === 0 ? (
                 <div className="p-12 text-center">
                   <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-700 font-medium">{language === 'ka' ? 'გადახდები არ მოიძებნა' : 'No payments found'}</p>
@@ -607,20 +770,20 @@ export const DebtorPage: React.FC = () => {
                     <tr>
                       <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider w-12">#</th>
                       <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{t(language, 'date')}</th>
-                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</th>
+                      <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია') : (viewMode === 'suppliers' ? 'Supplier' : 'Customer')}</th>
                       <th className="px-4 py-3 text-xs font-bold text-green-600 uppercase tracking-wider text-right">{language === 'ka' ? 'თანხა' : 'Amount'}</th>
                       <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">{language === 'ka' ? 'შენიშვნა' : 'Note'}</th>
                       <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-24">{language === 'ka' ? 'მოქმ.' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filteredPayments
-                      .sort((a: SupplierPayment, b: SupplierPayment) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                      .map((pay: SupplierPayment, i: number) => (
+                    {(viewMode === 'suppliers' ? filteredPayments : filteredCustomerPayments)
+                      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map((pay: any, i: number) => (
                         <tr key={pay.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 py-3 text-slate-400 font-medium">{i + 1}</td>
                           <td className="px-4 py-3 text-slate-700 font-medium">{pay.date}</td>
-                          <td className="px-4 py-3 font-bold text-slate-900">{pay.supplier}</td>
+                          <td className="px-4 py-3 font-bold text-slate-900">{pay.supplier || pay.customer}</td>
                           <td className="px-4 py-3 text-right font-bold text-green-600">{formatCurrency(pay.amount)}</td>
                           <td className="px-4 py-3 text-slate-500 truncate max-w-[200px]">{pay.note || '-'}</td>
                           <td className="px-4 py-3 text-center">
@@ -642,7 +805,7 @@ export const DebtorPage: React.FC = () => {
                         {language === 'ka' ? 'ჯამი:' : 'Total:'}
                       </td>
                       <td className="px-4 py-3 text-right text-sm font-black text-green-600">
-                        {formatCurrency(filteredPayments.reduce((sum: number, p: SupplierPayment) => sum + p.amount, 0))}
+                        {formatCurrency((viewMode === 'suppliers' ? filteredPayments : filteredCustomerPayments).reduce((sum: number, p: any) => sum + p.amount, 0))}
                       </td>
                       <td colSpan={2}></td>
                     </tr>
@@ -670,7 +833,7 @@ export const DebtorPage: React.FC = () => {
             <div className="p-6">
               <form onSubmit={handleEditPayment} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'მომწოდებელი' : 'Supplier'}</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? (viewMode === 'suppliers' ? 'მომწოდებელი' : 'კომპანია') : (viewMode === 'suppliers' ? 'Supplier' : 'Customer')}</label>
                   <select
                     value={editPaymentForm.supplier}
                     onChange={(e) => setEditPaymentForm(p => ({ ...p, supplier: e.target.value }))}
@@ -678,7 +841,7 @@ export const DebtorPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-brand-500 focus:border-brand-500 bg-white"
                   >
                     <option value="">{language === 'ka' ? 'აირჩიეთ...' : 'Select...'}</option>
-                    {allSuppliers.map(s => <option key={s} value={s}>{s}</option>)}
+                    {(viewMode === 'suppliers' ? allSuppliers : allCustomers).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>

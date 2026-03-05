@@ -1,13 +1,19 @@
 import React, { useState, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { Sale } from '../types';
+import { Sale, Department } from '../types';
 import { t, formatCurrency } from '../i18n';
 import { Plus, Download, ChevronDown, ChevronRight, TrendingUp, Receipt, Store, Trash2, Edit2, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const SalesPage: React.FC = () => {
+  const { department } = useParams<{ department: string }>();
+  const currentDept = (department as Department) || 'restaurant';
   const { language, addSale, editSale, deleteSale, sales, dishes } = useAppStore();
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  
+  const deptSales = useMemo(() => sales.filter(s => (s.department || 'restaurant') === currentDept), [sales, currentDept]);
+  const deptDishes = useMemo(() => dishes.filter(d => (d.department || 'restaurant') === currentDept), [dishes, currentDept]);
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -32,8 +38,8 @@ export const SalesPage: React.FC = () => {
     setEditFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const selectedDish = useMemo(() => dishes.find(d => d.id === formData.dishId), [dishes, formData.dishId]);
-  const editSelectedDish = useMemo(() => dishes.find(d => d.id === editFormData.dishId), [dishes, editFormData.dishId]);
+  const selectedDish = useMemo(() => deptDishes.find(d => d.id === formData.dishId), [deptDishes, formData.dishId]);
+  const editSelectedDish = useMemo(() => deptDishes.find(d => d.id === editFormData.dishId), [deptDishes, editFormData.dishId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,6 +49,7 @@ export const SalesPage: React.FC = () => {
       date: formData.date,
       dishId: formData.dishId,
       quantity: Number(formData.quantity),
+      department: currentDept,
     });
 
     setFormData((prev) => ({
@@ -60,13 +67,14 @@ export const SalesPage: React.FC = () => {
       date: editFormData.date,
       dishId: editFormData.dishId,
       quantity: Number(editFormData.quantity),
+      department: currentDept,
     });
 
     setEditingSale(null);
   };
 
   const getDishName = (dishId: string) => {
-    return dishes.find(d => d.id === dishId)?.name || 'Unknown Dish';
+    return deptDishes.find(d => d.id === dishId)?.name || 'Unknown Dish';
   };
 
   const openEditSale = (sale: Sale) => {
@@ -79,7 +87,7 @@ export const SalesPage: React.FC = () => {
   };
 
   const handleExport = () => {
-    const dataToExport = sales.map(s => ({
+    const dataToExport = deptSales.map(s => ({
       [t(language, 'date')]: s.date,
       [t(language, 'dishName')]: getDishName(s.dishId),
       [t(language, 'quantity')]: s.quantity,
@@ -136,7 +144,7 @@ export const SalesPage: React.FC = () => {
               <div className="bg-brand-100 p-1.5 rounded-lg mr-3">
                 <Plus className="w-5 h-5 text-brand-600" />
               </div>
-              {t(language, 'addSale')}
+              {addTitle}
             </h3>
             
             {dishes.length === 0 ? (
@@ -272,6 +280,7 @@ export const SalesPage: React.FC = () => {
                                   <tr key={sale.id} className="hover:bg-slate-50/80 transition-colors">
                                     <td className="px-5 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                                       {getDishName(sale.dishId)}
+                                      {sale.debtor && <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-700 rounded-md text-xs font-medium">Debtor: {sale.debtor}</span>}
                                     </td>
                                     <td className="px-5 py-3 whitespace-nowrap text-sm text-gray-600 text-right">
                                       <span className="font-medium text-gray-900">{sale.quantity}</span>

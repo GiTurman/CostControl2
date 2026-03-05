@@ -103,11 +103,21 @@ const App: React.FC = () => {
       <Route path="/HORECA/COSTCONTROL/:restaurantId" element={<RequireAuth><AppLayout /></RequireAuth>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="products" element={<ProductsPage />} />
-        <Route path="purchases" element={<PurchasesPage />} />
-        <Route path="menu" element={<MenuPage />} />
-        <Route path="sales" element={<SalesPage />} />
-        <Route path="inventory" element={<InventoryPage />} />
+        
+        {/* Department Routes */}
+        <Route path=":department/products" element={<ProductsPage />} />
+        <Route path=":department/purchases" element={<PurchasesPage />} />
+        <Route path=":department/menu" element={<MenuPage />} />
+        <Route path=":department/sales" element={<SalesPage />} />
+        <Route path=":department/inventory" element={<InventoryPage />} />
+
+        {/* Legacy Routes (Redirect to restaurant) */}
+        <Route path="products" element={<Navigate to="restaurant/products" replace />} />
+        <Route path="purchases" element={<Navigate to="restaurant/purchases" replace />} />
+        <Route path="menu" element={<Navigate to="restaurant/menu" replace />} />
+        <Route path="sales" element={<Navigate to="restaurant/sales" replace />} />
+        <Route path="inventory" element={<Navigate to="restaurant/inventory" replace />} />
+
         <Route path="settings" element={<SettingsPage />} />
         <Route path="instructions" element={<InstructionsPage />} />
         <Route path="ai-analytics" element={<AiAnalyticsPage />} />

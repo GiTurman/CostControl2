@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { 
   LayoutDashboard, Utensils, TrendingUp, ShoppingCart, Package, Boxes, X, Trash2,
   Settings, BookOpen, LineChart, LogOut, Landmark, ChevronDown, ChevronRight,
-  UtensilsCrossed, Sparkles, Coffee, Home
+  UtensilsCrossed, Sparkles, Coffee, Home, Wine, ClipboardList
 } from 'lucide-react';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
@@ -17,7 +17,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const [searchParams] = useSearchParams();
   const [confirmModal, setConfirmModal] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
-  const [restaurantExpanded, setRestaurantExpanded] = useState(true);
+  const [restaurantExpanded, setRestaurantExpanded] = useState(false);
+  const [barExpanded, setBarExpanded] = useState(false);
+  const [breakfastExpanded, setBreakfastExpanded] = useState(false);
+  const [housekeepingExpanded, setHousekeepingExpanded] = useState(false);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
@@ -25,13 +28,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const currentPath = window.location.pathname;
   const isOnDebtor = currentPath.includes('/debtor');
 
-  const restaurantSubItems = [
-    { path: `${basePath}/menu`, label: t(language, 'menu'), icon: Utensils },
-    { path: `${basePath}/sales`, label: t(language, 'sales'), icon: TrendingUp },
-    { path: `${basePath}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
-    { path: `${basePath}/products`, label: t(language, 'products'), icon: Boxes },
-  ];
-  const isOnRestaurant = restaurantSubItems.some(item => currentPath.endsWith(item.path.split(basePath)[1]));
+  const getSubItems = (dept: string) => {
+    if (dept === 'restaurant' || dept === 'bar' || dept === 'breakfast') {
+      return [
+        { path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils },
+        { path: `${basePath}/${dept}/sales`, label: t(language, 'sales'), icon: TrendingUp },
+        { path: `${basePath}/${dept}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
+        { path: `${basePath}/${dept}/inventory`, label: t(language, 'inventory'), icon: Package },
+      ];
+    }
+    if (dept === 'housekeeping') {
+      return [
+        { path: `${basePath}/${dept}/purchases`, label: t(language, 'purchases'), icon: ShoppingCart },
+        { path: `${basePath}/${dept}`, label: language === 'ka' ? 'ხარჯვა' : 'Consumption', icon: TrendingUp },
+        { path: `${basePath}/${dept}/inventory`, label: t(language, 'inventory'), icon: Package },
+      ];
+    }
+    return [];
+  };
+
+  const isDeptActive = (dept: string) => currentPath.includes(`/${dept}/`) || (dept === 'breakfast' && currentPath.endsWith('/breakfast')) || (dept === 'housekeeping' && currentPath.endsWith('/housekeeping'));
 
   const bottomNavItems = [
     { path: `${basePath}/settings`, label: language === 'ka' ? 'პარამეტრები' : 'Settings', icon: Settings },
@@ -67,13 +83,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
             {/* რესტორანი (Dropdown) */}
             <li>
-              <button onClick={() => setRestaurantExpanded(!restaurantExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isOnRestaurant && !restaurantExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+              <button onClick={() => setRestaurantExpanded(!restaurantExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isDeptActive('restaurant') && !restaurantExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
                 <div className="flex items-center"><UtensilsCrossed className="w-5 h-5 mr-3" />{language === 'ka' ? 'რესტორანი' : 'Restaurant'}</div>
                 {restaurantExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
               </button>
               {restaurantExpanded && (
                 <ul className="ml-6 border-l border-slate-700 space-y-0.5">
-                  {restaurantSubItems.map(item => { const Icon = item.icon; return (
+                  {getSubItems('restaurant').map(item => { const Icon = item.icon; return (
                     <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
@@ -82,25 +98,55 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               )}
             </li>
 
-            {/* საუზმე (ცალკე პუნქტი) */}
+            {/* ბარი (Dropdown) */}
             <li>
-              <NavLink to={`${basePath}/breakfast`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Coffee className="w-5 h-5 mr-3" />{language === 'ka' ? 'საუზმე' : 'Breakfast'}
-              </NavLink>
+              <button onClick={() => setBarExpanded(!barExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isDeptActive('bar') && !barExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Wine className="w-5 h-5 mr-3" />{language === 'ka' ? 'ბარი' : 'Bar'}</div>
+                {barExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {barExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  {getSubItems('bar').map(item => { const Icon = item.icon; return (
+                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                      <Icon className="w-4 h-4 mr-2.5" />{item.label}
+                    </NavLink></li>
+                  );})}
+                </ul>
+              )}
             </li>
 
-            {/* ჰაუს ქიფინგი (ცალკე პუნქტი) */}
+            {/* საუზმე (Dropdown) */}
             <li>
-              <NavLink to={`${basePath}/housekeeping`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Sparkles className="w-5 h-5 mr-3" />{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}
-              </NavLink>
+              <button onClick={() => setBreakfastExpanded(!breakfastExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isDeptActive('breakfast') && !breakfastExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Coffee className="w-5 h-5 mr-3" />{language === 'ka' ? 'საუზმე' : 'Breakfast'}</div>
+                {breakfastExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {breakfastExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  {getSubItems('breakfast').map(item => { const Icon = item.icon; return (
+                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                      <Icon className="w-4 h-4 mr-2.5" />{item.label}
+                    </NavLink></li>
+                  );})}
+                </ul>
+              )}
             </li>
 
-            {/* ინვენტარი */}
+            {/* ჰაუს ქიფინგი (Dropdown) */}
             <li>
-              <NavLink to={`${basePath}/inventory`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
-                <Package className="w-5 h-5 mr-3" />{t(language, 'inventory')}
-              </NavLink>
+              <button onClick={() => setHousekeepingExpanded(!housekeepingExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isDeptActive('housekeeping') && !housekeepingExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Sparkles className="w-5 h-5 mr-3" />{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}</div>
+                {housekeepingExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {housekeepingExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  {getSubItems('housekeeping').map(item => { const Icon = item.icon; return (
+                    <li key={item.path}><NavLink to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                      <Icon className="w-4 h-4 mr-2.5" />{item.label}
+                    </NavLink></li>
+                  );})}
+                </ul>
+              )}
             </li>
 
             {/* დებიტორი */}
