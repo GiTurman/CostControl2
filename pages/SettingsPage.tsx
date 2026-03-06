@@ -1,16 +1,19 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { t } from '../i18n';
 import { Settings, User, Shield, Save, KeyRound, AlertCircle, CheckCircle2, History, ChevronDown, ChevronRight, Clock, Download, Trash2, HardDrive, DownloadCloud, UploadCloud } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const SettingsPage: React.FC = () => {
-  const { language, currentUserId, updatePassword, getActivityLogs, clearLogs, restoreData } = useAppStore();
+  const { language, currentUserId, updatePassword, getActivityLogs, clearLogs, restoreData, setCompanyId } = useAppStore();
   const activityLogs = getActivityLogs();
+  const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newCompanyId, setNewCompanyId] = useState('');
   
   // State for collapsible activity log
   const [isLogsExpanded, setIsLogsExpanded] = useState(false);
@@ -39,6 +42,26 @@ export const SettingsPage: React.FC = () => {
       setConfirmPassword('');
     } else {
       setAlert({ message: t(language, 'invalidCurrentPassword'), type: 'error' });
+    }
+  };
+
+  const handleSetCompanyId = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^(\d{9}|\d{11})$/.test(newCompanyId)) {
+      setAlert({ 
+        message: language === 'ka' ? 'კომპანიის ID უნდა იყოს 9 ან 11 ნიშნა.' : 'Company ID must be 9 or 11 digits.', 
+        type: 'error' 
+      });
+      return;
+    }
+
+    const success = setCompanyId(newCompanyId);
+    if (success) {
+      setAlert({ message: language === 'ka' ? 'კომპანიის ID წარმატებით დაყენდა.' : 'Company ID set successfully.', type: 'success' });
+      // Redirect to the new URL
+      navigate(`/HORECA/COSTCONTROL/${newCompanyId}/settings`, { replace: true });
+    } else {
+      setAlert({ message: language === 'ka' ? 'შეცდომა ID-ის დაყენებისას. შესაძლოა ID უკვე დაკავებულია.' : 'Error setting ID. It might already be taken.', type: 'error' });
     }
   };
 
@@ -164,23 +187,56 @@ export const SettingsPage: React.FC = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'კომპანიის ID' : 'Company ID'}</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <User className="w-4 h-4 text-gray-400" />
+                {currentUserId === '0000000' ? (
+                  <form onSubmit={handleSetCompanyId} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        {language === 'ka' ? 'დააყენეთ კომპანიის ID (9/11 ნიშნა)' : 'Set Company ID (9/11 digits)'}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Shield className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <input
+                          type="text"
+                          required
+                          value={newCompanyId}
+                          onChange={(e) => setNewCompanyId(e.target.value)}
+                          placeholder="123456789"
+                          className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-500 focus:border-brand-500 sm:text-sm transition-shadow shadow-sm"
+                        />
+                      </div>
+                      <p className="mt-2 text-xs text-brand-600 font-medium italic">
+                        {language === 'ka' ? 'ყურადღება: ID-ის შეცვლა მხოლოდ ერთხელ არის შესაძლებელი!' : 'Warning: ID can only be set once!'}
+                      </p>
                     </div>
-                    <input
-                      type="text"
-                      readOnly
-                      value={currentUserId || ''}
-                      className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium sm:text-sm shadow-inner cursor-not-allowed"
-                    />
+                    <button
+                      type="submit"
+                      className="w-full flex justify-center items-center px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-bold hover:bg-brand-700 transition-all shadow-sm active:scale-95"
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {language === 'ka' ? 'ID-ის შენახვა' : 'Save ID'}
+                    </button>
+                  </form>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'კომპანიის ID' : 'Company ID'}</label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <User className="w-4 h-4 text-gray-400" />
+                      </div>
+                      <input
+                        type="text"
+                        readOnly
+                        value={currentUserId || ''}
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium sm:text-sm shadow-inner cursor-not-allowed"
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {language === 'ka' ? 'კომპანიის ID-ის შეცვლა შეუძლებელია.' : 'Company ID cannot be changed.'}
+                    </p>
                   </div>
-                  <p className="mt-2 text-xs text-gray-500">
-                    {language === 'ka' ? 'კომპანიის ID-ის შეცვლა შეუძლებელია.' : 'Company ID cannot be changed.'}
-                  </p>
-                </div>
+                )}
               </div>
             </div>
           </div>

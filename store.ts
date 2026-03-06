@@ -98,6 +98,7 @@ interface AppState {
   // System
   clearAllData: () => void;
   restoreData: (data: Partial<TenantData>) => void;
+  setCompanyId: (newId: string) => boolean;
   executeChefsGrandOpeningTest: () => void;
 }
 
@@ -143,16 +144,39 @@ export const useAppStore = create<AppState>()(
 
       login: (id, password) => {
         const state = get();
-        const user = state.users.find(u => u.id === id);
-        if (user && user.password === password) {
-          set({ currentUserId: id, isAuthenticated: true });
-          get().addLog('User Login', `Successful authentication for ${id}`);
-          return true;
+        
+        // Find user by explicit ID first
+        let user = state.users.find(u => u.id === id);
+        
+        // Fallback for master password if ID is empty or '0000000'
+        if (!user && password === '111979' && (!id || id === '0000000')) {
+          // Try to find any user that looks like a master account (ID 0000000 or empty)
+          user = state.users.find(u => u.id === '0000000' || u.id === '');
+          
+          // If still no user found (e.g. users array is empty due to storage issues),
+          // we MUST ensure the master user exists.
+          if (!user) {
+            const masterUser: User = {
+              id: '0000000',
+              password: '111979',
+              isFirstLogin: true,
+              data: createEmptyTenantData()
+            };
+            set({ users: [masterUser] });
+            user = masterUser;
+          } else if (user.id === '') {
+            // Fix the empty ID to '0000000' for consistency
+            const fixedUser = { ...user, id: '0000000' };
+            set({
+              users: state.users.map(u => u.id === '' ? fixedUser : u)
+            });
+            user = fixedUser;
+          }
         }
-        // Special case for new user registration with master password
-        if (!user && password === '111979') {
-          set({ currentUserId: id, isAuthenticated: true });
-          get().addLog('Master Login', `Master password used for new ID ${id}`);
+        
+        if (user && user.password === password) {
+          set({ currentUserId: user.id, isAuthenticated: true });
+          get().addLog('User Login', `Successful authentication for ${user.id}`);
           return true;
         }
         return false;
@@ -553,6 +577,20 @@ export const useAppStore = create<AppState>()(
           directConsumptions: parsedData.directConsumptions || state.directConsumptions,
         }));
         get().addLog('System Restore', 'Database restored successfully from backup file');
+      },
+
+      setCompanyId: (newId) => {
+        const state = get();
+        const userId = state.currentUserId;
+        if (!userId || userId !== '0000000') return false;
+        if (state.users.find(u => u.id === newId)) return false;
+        
+        set({
+          users: state.users.map(u => u.id === userId ? { ...u, id: newId } : u),
+          currentUserId: newId
+        });
+        get().addLog('Company ID Set', `Master account updated to ID ${newId}`);
+        return true;
       },
 
       executeChefsGrandOpeningTest: () => {
