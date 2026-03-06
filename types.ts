@@ -115,6 +115,30 @@ export interface HousekeepingBOMItem {
   quantity: number;
 }
 
+export interface TenantData {
+  products: Product[];
+  purchases: Purchase[];
+  sales: Sale[];
+  dishes: Dish[];
+  inventoryAudits: InventoryAudit[];
+  activityLogs: ActivityLog[];
+  supplierPayments: SupplierPayment[];
+  customerPayments: CustomerPayment[];
+  breakfastMenus: WeeklyBreakfastMenus;
+  breakfastLogs: BreakfastLog[];
+  housekeepingBOM: HousekeepingBOMItem[];
+  rooms: Room[];
+  housekeepingLogs: HousekeepingLog[];
+  directConsumptions: DirectConsumption[];
+}
+
+export interface User {
+  id: string;
+  password: string;
+  isFirstLogin: boolean;
+  data: TenantData;
+}
+
 export type RoomStatus = 'clean' | 'dirty' | 'in_progress';
 
 export interface Room {

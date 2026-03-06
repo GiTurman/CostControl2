@@ -9,7 +9,13 @@ import * as XLSX from 'xlsx';
 export const InventoryPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
-  const { language, products, purchases, sales, dishes, inventoryAudits, saveInventoryAudit, directConsumptions = [] } = useAppStore() as any;
+  const { language, getProducts, getPurchases, getSales, getDishes, getInventoryAudits, saveInventoryAudit, getDirectConsumptions } = useAppStore();
+  const products = getProducts();
+  const purchases = getPurchases();
+  const sales = getSales();
+  const dishes = getDishes();
+  const inventoryAudits = getInventoryAudits();
+  const directConsumptions = getDirectConsumptions();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [actualBalances, setActualBalances] = useState<Record<string, string>>({});
   const [alertMessage, setAlertMessage] = useState<string | null>(null);

@@ -5,7 +5,8 @@ import { Settings, User, Shield, Save, KeyRound, AlertCircle, CheckCircle2, Hist
 import * as XLSX from 'xlsx';
 
 export const SettingsPage: React.FC = () => {
-  const { language, username, updatePassword, activityLogs, clearLogs, restoreData } = useAppStore();
+  const { language, currentUserId, updatePassword, getActivityLogs, clearLogs, restoreData } = useAppStore();
+  const activityLogs = getActivityLogs();
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -82,12 +83,12 @@ export const SettingsPage: React.FC = () => {
   const handleBackupData = () => {
     const state = useAppStore.getState();
     const dataToExport = {
-      products: state.products,
-      purchases: state.purchases,
-      sales: state.sales,
-      dishes: state.dishes,
-      inventoryAudits: state.inventoryAudits,
-      activityLogs: state.activityLogs,
+      products: state.getProducts(),
+      purchases: state.getPurchases(),
+      sales: state.getSales(),
+      dishes: state.getDishes(),
+      inventoryAudits: state.getInventoryAudits(),
+      activityLogs: state.getActivityLogs(),
     };
     
     const jsonString = JSON.stringify(dataToExport, null, 2);
@@ -164,7 +165,7 @@ export const SettingsPage: React.FC = () => {
             <div className="p-6">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t(language, 'username')}</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">{language === 'ka' ? 'კომპანიის ID' : 'Company ID'}</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <User className="w-4 h-4 text-gray-400" />
@@ -172,12 +173,12 @@ export const SettingsPage: React.FC = () => {
                     <input
                       type="text"
                       readOnly
-                      value={username}
+                      value={currentUserId || ''}
                       className="w-full pl-10 pr-4 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-600 font-medium sm:text-sm shadow-inner cursor-not-allowed"
                     />
                   </div>
                   <p className="mt-2 text-xs text-gray-500">
-                    {language === 'ka' ? 'მომხმარებლის სახელის შეცვლა შეუძლებელია.' : 'Username cannot be changed.'}
+                    {language === 'ka' ? 'კომპანიის ID-ის შეცვლა შეუძლებელია.' : 'Company ID cannot be changed.'}
                   </p>
                 </div>
               </div>

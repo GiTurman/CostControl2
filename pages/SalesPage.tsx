@@ -9,7 +9,9 @@ import * as XLSX from 'xlsx';
 export const SalesPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
-  const { language, addSale, editSale, deleteSale, sales, dishes } = useAppStore();
+  const { language, addSale, editSale, deleteSale, getSales, getDishes } = useAppStore();
+  const sales = getSales();
+  const dishes = getDishes();
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   
   const deptSales = useMemo(() => sales.filter(s => (s.department || 'restaurant') === currentDept), [sales, currentDept]);

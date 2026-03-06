@@ -9,7 +9,8 @@ import * as XLSX from 'xlsx';
 export const ProductsPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
-  const { language, products, updateProductMinBalance } = useAppStore();
+  const { language, getProducts, updateProductMinBalance } = useAppStore();
+  const products = getProducts();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);

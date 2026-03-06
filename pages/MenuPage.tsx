@@ -9,7 +9,10 @@ import * as XLSX from 'xlsx';
 export const MenuPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
-  const { language, dishes, products, purchases, addDish, editDish, deleteDish } = useAppStore();
+  const { language, getDishes, getProducts, getPurchases, addDish, editDish, deleteDish } = useAppStore();
+  const dishes = getDishes();
+  const products = getProducts();
+  const purchases = getPurchases();
   
   const deptDishes = useMemo(() => dishes.filter(d => (d.department || 'restaurant') === currentDept), [dishes, currentDept]);
   const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === currentDept), [products, currentDept]);

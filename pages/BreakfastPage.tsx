@@ -19,9 +19,14 @@ const DAYS: { key: DayOfWeek; ka: string; en: string }[] = [
 
 export const BreakfastPage: React.FC = () => {
   const { 
-    language, products, purchases, breakfastMenus, saveBreakfastMenu, 
-    breakfastLogs, logBreakfast, deleteBreakfastLog, rooms 
+    language, getProducts, getPurchases, getBreakfastMenus, saveBreakfastMenu, 
+    getBreakfastLogs, logBreakfast, deleteBreakfastLog, getRooms 
   } = useAppStore();
+  const products = getProducts();
+  const purchases = getPurchases();
+  const breakfastMenus = getBreakfastMenus();
+  const breakfastLogs = getBreakfastLogs();
+  const rooms = getRooms();
 
   const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'breakfast'), [products]);
   const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === 'breakfast'), [purchases]);

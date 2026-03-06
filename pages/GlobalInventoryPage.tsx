@@ -5,7 +5,13 @@ import { Download, Boxes, Search, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export const GlobalInventoryPage: React.FC = () => {
-  const { language, products, purchases, sales, dishes, inventoryAudits, directConsumptions = [] } = useAppStore() as any;
+  const { language, getProducts, getPurchases, getSales, getDishes, getInventoryAudits, getDirectConsumptions } = useAppStore();
+  const products = getProducts();
+  const purchases = getPurchases();
+  const sales = getSales();
+  const dishes = getDishes();
+  const inventoryAudits = getInventoryAudits();
+  const directConsumptions = getDirectConsumptions();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [deptFilter, setDeptFilter] = useState<string>('all');

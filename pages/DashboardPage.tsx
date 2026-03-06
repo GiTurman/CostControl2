@@ -220,7 +220,11 @@ const DashboardAIAnalysis: React.FC<{
 // --------------------------------
 
 export const DashboardPage: React.FC = () => {
-  const { language, sales, purchases, dishes, products, executeChefsGrandOpeningTest } = useAppStore();
+  const { language, getSales, getPurchases, getDishes, getProducts, executeChefsGrandOpeningTest } = useAppStore();
+  const sales = getSales();
+  const purchases = getPurchases();
+  const dishes = getDishes();
+  const products = getProducts();
   const [isChefTestModalOpen, setIsChefTestModalOpen] = useState(false);
   const [confirmModal, setConfirmModal] = useState<{message: string, onConfirm: () => void} | null>(null);
 

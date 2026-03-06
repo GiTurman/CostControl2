@@ -27,10 +27,15 @@ export interface CustomerPayment {
 
 export const DebtorPage: React.FC = () => {
   const { 
-    language, purchases, products, supplierPayments = [], customerPayments = [], 
-    breakfastLogs = [], addSupplierPayment, editSupplierPayment, deleteSupplierPayment,
+    language, getPurchases, getProducts, getSupplierPayments, getCustomerPayments, 
+    getBreakfastLogs, addSupplierPayment, editSupplierPayment, deleteSupplierPayment,
     addCustomerPayment, editCustomerPayment, deleteCustomerPayment
-  } = useAppStore() as any;
+  } = useAppStore();
+  const purchases = getPurchases();
+  const products = getProducts();
+  const supplierPayments = getSupplierPayments();
+  const customerPayments = getCustomerPayments();
+  const breakfastLogs = getBreakfastLogs();
 
   // Read tab from URL query param
   const [searchParams, setSearchParams] = useSearchParams();

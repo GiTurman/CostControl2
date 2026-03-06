@@ -13,7 +13,11 @@ const STATUS_COLORS: Record<RoomStatus, { bg: string; text: string; border: stri
 const STATUS_ORDER: RoomStatus[] = ['dirty', 'in_progress', 'clean'];
 
 export const HousekeepingPage: React.FC = () => {
-  const { language, products, rooms, addRoom, deleteRoom, updateRoomStatus, housekeepingBOM, saveHousekeepingBOM, housekeepingLogs } = useAppStore();
+  const { language, getProducts, getRooms, addRoom, deleteRoom, updateRoomStatus, getHousekeepingBOM, saveHousekeepingBOM, getHousekeepingLogs } = useAppStore();
+  const products = getProducts();
+  const rooms = getRooms();
+  const housekeepingBOM = getHousekeepingBOM();
+  const housekeepingLogs = getHousekeepingLogs();
 
   const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'housekeeping'), [products]);
 

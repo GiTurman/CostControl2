@@ -21,10 +21,13 @@ import { t } from './i18n';
 import { Lock, ShieldCheck, AlertCircle } from 'lucide-react';
 
 const FirstLoginScreen: React.FC = () => {
-  const { language, changePassword } = useAppStore();
+  const { language, changePassword, getCurrentUser } = useAppStore();
+  const user = getCurrentUser();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+
+  if (!user) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,18 +76,26 @@ const FirstLoginScreen: React.FC = () => {
 };
 
 const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isFirstLogin } = useAppStore();
+  const { isAuthenticated, getCurrentUser, currentUserId } = useAppStore();
+  const { restaurantId } = useParams<{ restaurantId: string }>();
   const location = useLocation();
+
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (isFirstLogin) return <FirstLoginScreen />;
+  
+  const user = getCurrentUser();
+  if (!user || user.id !== restaurantId) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.isFirstLogin) return <FirstLoginScreen />;
   return <>{children}</>;
 };
 
 const AppLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { restaurantId } = useParams<{ restaurantId: string }>();
-  const isValidId = restaurantId && /^(\d{9}|\d{11})$/.test(restaurantId);
-  if (!isValidId) return <Navigate to="/HORECA/COSTCONTROL/123456789/dashboard" replace />;
+  const isValidId = restaurantId && (/^(\d{9}|\d{11})$/.test(restaurantId) || restaurantId === '0000000');
+  if (!isValidId) return <Navigate to="/HORECA/COSTCONTROL/0000000/dashboard" replace />;
 
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
@@ -127,7 +138,7 @@ const App: React.FC = () => {
         <Route path="breakfast" element={<BreakfastPage />} />
         <Route path="housekeeping" element={<HousekeepingPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/HORECA/COSTCONTROL/123456789/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/HORECA/COSTCONTROL/0000000/dashboard" replace />} />
     </Routes>
   );
 };

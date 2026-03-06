@@ -3,7 +3,8 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   Product, Purchase, Sale, Dish, Language, InventoryAudit, Ingredient, ActivityLog,
   SupplierPayment, CustomerPayment, BreakfastDayMenu, DayOfWeek, WeeklyBreakfastMenus, BreakfastLog,
-  HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient, Department
+  HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient, Department,
+  User, TenantData
 } from './types';
 
 const DAYS: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -15,77 +16,88 @@ const defaultWeeklyMenus = (): WeeklyBreakfastMenus => ({
   thursday: emptyDayMenu(), friday: emptyDayMenu(), saturday: emptyDayMenu(), sunday: emptyDayMenu(),
 });
 
+const createEmptyTenantData = (): TenantData => ({
+  products: [],
+  purchases: [],
+  sales: [],
+  dishes: [],
+  inventoryAudits: [],
+  activityLogs: [],
+  supplierPayments: [],
+  customerPayments: [],
+  breakfastMenus: defaultWeeklyMenus(),
+  breakfastLogs: [],
+  housekeepingBOM: [],
+  rooms: [],
+  housekeepingLogs: [],
+  directConsumptions: [],
+});
+
 interface AppState {
   language: Language;
-  username: string;
-  password: string;
+  users: User[];
+  currentUserId: string | null;
   isAuthenticated: boolean;
-  isFirstLogin: boolean;
-  products: Product[];
-  purchases: Purchase[];
-  sales: Sale[];
-  dishes: Dish[];
-  inventoryAudits: InventoryAudit[];
-  activityLogs: ActivityLog[];
-  supplierPayments: SupplierPayment[];
-  customerPayments: CustomerPayment[];
-  // Breakfast
-  breakfastMenus: WeeklyBreakfastMenus;
-  breakfastLogs: BreakfastLog[];
-  // Housekeeping
-  housekeepingBOM: HousekeepingBOMItem[];
-  rooms: Room[];
-  housekeepingLogs: HousekeepingLog[];
-  // Direct consumption (inventory link)
-  directConsumptions: DirectConsumption[];
 
   // Auth & settings
   setLanguage: (lang: Language) => void;
-  login: (inputPassword: string) => boolean;
+  login: (id: string, password: string) => boolean;
+  register: (id: string, password: string) => boolean;
   logout: () => void;
   changePassword: (newPassword: string) => void;
   updatePassword: (current: string, newPass: string) => boolean;
   addLog: (action: string, details: string) => void;
   clearLogs: () => void;
-  // Products
+
+  // Accessors (Scoped to currentUserId)
+  getCurrentUser: () => User | undefined;
+  getProducts: () => Product[];
+  getPurchases: () => Purchase[];
+  getSales: () => Sale[];
+  getDishes: () => Dish[];
+  getInventoryAudits: () => InventoryAudit[];
+  getActivityLogs: () => ActivityLog[];
+  getSupplierPayments: () => SupplierPayment[];
+  getCustomerPayments: () => CustomerPayment[];
+  getBreakfastMenus: () => WeeklyBreakfastMenus;
+  getBreakfastLogs: () => BreakfastLog[];
+  getHousekeepingBOM: () => HousekeepingBOMItem[];
+  getRooms: () => Room[];
+  getHousekeepingLogs: () => HousekeepingLog[];
+  getDirectConsumptions: () => DirectConsumption[];
+
+  // Actions (Scoped to currentUserId)
   updateProductMinBalance: (id: string, minBalance: number) => void;
   addProduct: (product: Product) => void;
-  // Dishes
   addDish: (dish: Dish) => void;
   editDish: (id: string, dish: Dish) => void;
   deleteDish: (id: string) => void;
-  // Purchases
   addPurchase: (purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }) => void;
   editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }) => void;
   bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }>) => void;
   deletePurchase: (id: string) => void;
-  // Sales
   addSale: (sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
   editSale: (id: string, sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
   deleteSale: (id: string) => void;
-  // Inventory
   saveInventoryAudit: (audit: Omit<InventoryAudit, 'id'>) => void;
-  // Supplier payments
   addSupplierPayment: (payment: Omit<SupplierPayment, 'id'>) => void;
   editSupplierPayment: (id: string, payment: Omit<SupplierPayment, 'id'>) => void;
   deleteSupplierPayment: (id: string) => void;
-  // Customer payments
   addCustomerPayment: (payment: Omit<CustomerPayment, 'id'>) => void;
   editCustomerPayment: (id: string, payment: Omit<CustomerPayment, 'id'>) => void;
   deleteCustomerPayment: (id: string) => void;
-  // Breakfast
   saveBreakfastMenu: (day: DayOfWeek, menu: BreakfastDayMenu) => void;
   logBreakfast: (roomNumber: string, guestCount: number, debtor?: string) => void;
   deleteBreakfastLog: (id: string) => void;
-  // Housekeeping
   saveHousekeepingBOM: (items: HousekeepingBOMItem[]) => void;
   addRoom: (room: Omit<Room, 'id'>) => void;
   deleteRoom: (id: string) => void;
   updateRoomStatus: (id: string, status: RoomStatus, guestCount?: number) => void;
   deleteHousekeepingLog: (id: string) => void;
+
   // System
   clearAllData: () => void;
-  restoreData: (data: Partial<AppState>) => void;
+  restoreData: (data: Partial<TenantData>) => void;
   executeChefsGrandOpeningTest: () => void;
 }
 
@@ -102,361 +114,429 @@ const getDayOfWeek = (dateStr: string): DayOfWeek => {
   return DAYS[jsDay === 0 ? 6 : jsDay - 1];
 };
 
+const updateUser = (set: any, get: any, updater: (data: TenantData) => Partial<TenantData>) => {
+  const state = get();
+  const userId = state.currentUserId;
+  if (!userId) return;
+  
+  set((state: AppState) => ({
+    users: state.users.map(u => u.id === userId ? { ...u, data: { ...u.data, ...updater(u.data) } } : u)
+  }));
+};
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
       language: 'ka',
-      username: 'Administrator',
-      password: '111979',
+      users: [
+        {
+          id: '0000000',
+          password: '111979',
+          isFirstLogin: true,
+          data: createEmptyTenantData()
+        }
+      ],
+      currentUserId: null,
       isAuthenticated: false,
-      isFirstLogin: true,
-      products: [],
-      purchases: [],
-      sales: [],
-      dishes: [],
-      inventoryAudits: [],
-      activityLogs: [],
-      supplierPayments: [],
-      customerPayments: [],
-      breakfastMenus: defaultWeeklyMenus(),
-      breakfastLogs: [],
-      housekeepingBOM: [],
-      rooms: [],
-      housekeepingLogs: [],
-      directConsumptions: [],
 
       setLanguage: (lang) => set({ language: lang }),
 
-      login: (inputPassword) => {
+      login: (id, password) => {
         const state = get();
-        if (state.password === inputPassword) {
-          set({ isAuthenticated: true });
-          get().addLog('User Login', 'Successful authentication');
+        const user = state.users.find(u => u.id === id);
+        if (user && user.password === password) {
+          set({ currentUserId: id, isAuthenticated: true });
+          get().addLog('User Login', `Successful authentication for ${id}`);
+          return true;
+        }
+        // Special case for new user registration with master password
+        if (!user && password === '111979') {
+          set({ currentUserId: id, isAuthenticated: true });
+          get().addLog('Master Login', `Master password used for new ID ${id}`);
           return true;
         }
         return false;
       },
 
+      register: (id, password) => {
+        const state = get();
+        if (state.users.find(u => u.id === id)) return false;
+        
+        const newUser: User = {
+          id,
+          password,
+          isFirstLogin: false,
+          data: createEmptyTenantData()
+        };
+        
+        set({
+          users: [...state.users, newUser],
+          currentUserId: id,
+          isAuthenticated: true
+        });
+        get().addLog('User Registered', `New company ID ${id} registered`);
+        return true;
+      },
+
       logout: () => {
-        set({ isAuthenticated: false });
+        set({ currentUserId: null, isAuthenticated: false });
         get().addLog('User Logout', 'User ended session');
       },
 
       changePassword: (newPassword) => {
-        set({ password: newPassword, isFirstLogin: false });
+        const state = get();
+        const userId = state.currentUserId;
+        if (!userId) return;
+        
+        set({
+          users: state.users.map(u => u.id === userId ? { ...u, password: newPassword, isFirstLogin: false } : u)
+        });
         get().addLog('Password Changed', 'User updated initial password');
       },
 
       updatePassword: (current, newPass) => {
         const state = get();
-        if (state.password === current) {
-          set({ password: newPass, isFirstLogin: false });
+        const userId = state.currentUserId;
+        if (!userId) return false;
+        
+        const user = state.users.find(u => u.id === userId);
+        if (user && user.password === current) {
+          set({
+            users: state.users.map(u => u.id === userId ? { ...u, password: newPass, isFirstLogin: false } : u)
+          });
           get().addLog('Password Changed', 'User manually updated password');
           return true;
         }
         return false;
       },
 
-      addLog: (action, details) => set((state) => ({
-        activityLogs: [
-          { id: generateId(), timestamp: new Date().toISOString(), action, details, user: state.username },
-          ...state.activityLogs
-        ]
-      })),
+      addLog: (action, details) => {
+        const userId = get().currentUserId;
+        updateUser(set, get, (data) => ({
+          activityLogs: [
+            { id: generateId(), timestamp: new Date().toISOString(), action, details, user: userId || 'System' },
+            ...data.activityLogs
+          ]
+        }));
+      },
 
-      clearLogs: () => set({ activityLogs: [] }),
+      clearLogs: () => updateUser(set, get, () => ({ activityLogs: [] })),
 
+      // Accessors
+      getCurrentUser: () => get().users.find(u => u.id === get().currentUserId),
+      getProducts: () => get().getCurrentUser()?.data.products || [],
+      getPurchases: () => get().getCurrentUser()?.data.purchases || [],
+      getSales: () => get().getCurrentUser()?.data.sales || [],
+      getDishes: () => get().getCurrentUser()?.data.dishes || [],
+      getInventoryAudits: () => get().getCurrentUser()?.data.inventoryAudits || [],
+      getActivityLogs: () => get().getCurrentUser()?.data.activityLogs || [],
+      getSupplierPayments: () => get().getCurrentUser()?.data.supplierPayments || [],
+      getCustomerPayments: () => get().getCurrentUser()?.data.customerPayments || [],
+      getBreakfastMenus: () => get().getCurrentUser()?.data.breakfastMenus || defaultWeeklyMenus(),
+      getBreakfastLogs: () => get().getCurrentUser()?.data.breakfastLogs || [],
+      getHousekeepingBOM: () => get().getCurrentUser()?.data.housekeepingBOM || [],
+      getRooms: () => get().getCurrentUser()?.data.rooms || [],
+      getHousekeepingLogs: () => get().getCurrentUser()?.data.housekeepingLogs || [],
+      getDirectConsumptions: () => get().getCurrentUser()?.data.directConsumptions || [],
+
+      // Actions
       updateProductMinBalance: (id, minBalance) => {
-        const product = get().products.find(p => p.id === id);
-        set((state) => ({ products: state.products.map(p => p.id === id ? { ...p, minBalance } : p) }));
+        const product = get().getProducts().find(p => p.id === id);
+        updateUser(set, get, (data) => ({
+          products: data.products.map(p => p.id === id ? { ...p, minBalance } : p)
+        }));
         get().addLog('Min Balance Updated', `${product?.name || id} set to ${minBalance}`);
       },
 
       addProduct: (product) => {
-        set((state) => ({ products: [...state.products, product] }));
+        updateUser(set, get, (data) => ({ products: [...data.products, product] }));
         get().addLog('Product Created', `${product.name} (${product.unit})`);
       },
 
       addDish: (dish) => {
-        set((state) => ({ dishes: [...state.dishes, dish] }));
+        updateUser(set, get, (data) => ({ dishes: [...data.dishes, dish] }));
         get().addLog('Dish Created', dish.name);
       },
 
       editDish: (id, dish) => {
-        set((state) => ({ dishes: state.dishes.map(d => d.id === id ? dish : d) }));
+        updateUser(set, get, (data) => ({ dishes: data.dishes.map(d => d.id === id ? dish : d) }));
         get().addLog('Dish Edited', dish.name);
       },
 
       deleteDish: (id) => {
-        const dish = get().dishes.find(d => d.id === id);
-        set((state) => ({ dishes: state.dishes.filter(d => d.id !== id) }));
+        const dish = get().getDishes().find(d => d.id === id);
+        updateUser(set, get, (data) => ({ dishes: data.dishes.filter(d => d.id !== id) }));
         get().addLog('Dish Deleted', dish?.name || id);
       },
 
       deletePurchase: (id) => {
-        const purchase = get().purchases.find(p => p.id === id);
-        const product = get().products.find(p => p.id === purchase?.productId);
-        set((state) => ({ purchases: state.purchases.filter(p => p.id !== id) }));
+        const purchase = get().getPurchases().find(p => p.id === id);
+        const product = get().getProducts().find(p => p.id === purchase?.productId);
+        updateUser(set, get, (data) => ({ purchases: data.purchases.filter(p => p.id !== id) }));
         get().addLog('Purchase Deleted', `${product?.name || 'Unknown'} x${purchase?.quantity || 0}`);
       },
 
       addSale: (saleData) => {
-        const dish = get().dishes.find(d => d.id === saleData.dishId);
+        const dish = get().getDishes().find(d => d.id === saleData.dishId);
         const totalRevenue = dish ? dish.salePrice * saleData.quantity : 0;
-        set((state) => ({ sales: [...state.sales, { id: generateId(), ...saleData, totalRevenue }] }));
+        updateUser(set, get, (data) => ({ sales: [...data.sales, { id: generateId(), ...saleData, totalRevenue }] }));
         get().addLog('Sale Added', `${dish?.name || 'Unknown'} x${saleData.quantity}`);
       },
 
       editSale: (id, saleData) => {
-        const dish = get().dishes.find(d => d.id === saleData.dishId);
+        const dish = get().getDishes().find(d => d.id === saleData.dishId);
         const totalRevenue = dish ? dish.salePrice * saleData.quantity : 0;
-        set((state) => ({ sales: state.sales.map(s => s.id === id ? { ...s, ...saleData, totalRevenue } : s) }));
+        updateUser(set, get, (data) => ({ sales: data.sales.map(s => s.id === id ? { ...s, ...saleData, totalRevenue } : s) }));
         get().addLog('Sale Edited', `${dish?.name || 'Unknown'} x${saleData.quantity}`);
       },
 
       deleteSale: (id) => {
-        const sale = get().sales.find(s => s.id === id);
-        const dish = get().dishes.find(d => d.id === sale?.dishId);
-        set((state) => ({ sales: state.sales.filter(s => s.id !== id) }));
+        const sale = get().getSales().find(s => s.id === id);
+        const dish = get().getDishes().find(d => d.id === sale?.dishId);
+        updateUser(set, get, (data) => ({ sales: data.sales.filter(s => s.id !== id) }));
         get().addLog('Sale Deleted', `${dish?.name || 'Unknown'} x${sale?.quantity || 0}`);
       },
 
       addPurchase: (purchaseData) => {
-        const state = get();
-        let existingProduct = state.products.find(p => 
+        const products = get().getProducts();
+        let existingProduct = products.find(p => 
           p.name.toLowerCase() === purchaseData.productName.toLowerCase() && 
           (p.department || 'restaurant') === (purchaseData.department || 'restaurant')
         );
-        let newProducts = [...state.products];
+        
         let productId = existingProduct?.id;
-        if (!existingProduct) {
-          productId = generateId();
-          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
-        } else if (purchaseData.code && !existingProduct.code) {
-          existingProduct.code = purchaseData.code;
-        }
-        set({
-          products: newProducts,
-          purchases: [...state.purchases, { id: generateId(), date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department }],
+        updateUser(set, get, (data) => {
+          let newProducts = [...data.products];
+          if (!existingProduct) {
+            productId = generateId();
+            newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
+          } else if (purchaseData.code && !existingProduct.code) {
+            newProducts = newProducts.map(p => p.id === existingProduct!.id ? { ...p, code: purchaseData.code } : p);
+          }
+          
+          return {
+            products: newProducts,
+            purchases: [...data.purchases, { id: generateId(), date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department }],
+          };
         });
         get().addLog('Purchase Added', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
 
       editPurchase: (id, purchaseData) => {
-        const state = get();
-        let existingProduct = state.products.find(p => 
+        const products = get().getProducts();
+        let existingProduct = products.find(p => 
           p.name.toLowerCase() === purchaseData.productName.toLowerCase() && 
           (p.department || 'restaurant') === (purchaseData.department || 'restaurant')
         );
-        let newProducts = [...state.products];
+        
         let productId = existingProduct?.id;
-        if (!existingProduct) {
-          productId = generateId();
-          newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
-        } else if (purchaseData.code && !existingProduct.code) {
-          existingProduct.code = purchaseData.code;
-        }
-        set({
-          products: newProducts,
-          purchases: state.purchases.map(p => p.id === id ? { ...p, date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department } : p),
+        updateUser(set, get, (data) => {
+          let newProducts = [...data.products];
+          if (!existingProduct) {
+            productId = generateId();
+            newProducts.push({ id: productId, code: purchaseData.code, name: purchaseData.productName, unit: purchaseData.unit, category: purchaseData.category, minBalance: 0, department: purchaseData.department });
+          } else if (purchaseData.code && !existingProduct.code) {
+            newProducts = newProducts.map(p => p.id === existingProduct!.id ? { ...p, code: purchaseData.code } : p);
+          }
+          
+          return {
+            products: newProducts,
+            purchases: data.purchases.map(p => p.id === id ? { ...p, date: purchaseData.date, productId: productId!, quantity: purchaseData.quantity, price: purchaseData.price, total: purchaseData.quantity * purchaseData.price, supplier: purchaseData.supplier || '', department: purchaseData.department } : p),
+          };
         });
         get().addLog('Purchase Edited', `${purchaseData.productName} x${purchaseData.quantity} ${purchaseData.unit}`);
       },
 
       bulkAddPurchases: (bulkPurchases) => {
-        const state = get();
-        let newProducts = [...state.products];
-        let newPurchases = [...state.purchases];
-        bulkPurchases.forEach(pd => {
-          let ep = newProducts.find(p => 
-            p.name.toLowerCase() === pd.productName.toLowerCase() && 
-            (p.department || 'restaurant') === (pd.department || 'restaurant')
-          );
-          let pid = ep?.id;
-          if (!ep) {
-            pid = generateId();
-            newProducts.push({ id: pid, code: pd.code, name: pd.productName, unit: pd.unit, category: pd.category || 'General', minBalance: 0, department: pd.department });
-          } else if (pd.code && !ep.code) { ep.code = pd.code; }
-          newPurchases.push({ id: generateId(), date: pd.date, productId: pid!, quantity: pd.quantity, price: pd.price, total: pd.quantity * pd.price, supplier: pd.supplier || '', department: pd.department });
+        updateUser(set, get, (data) => {
+          let newProducts = [...data.products];
+          let newPurchases = [...data.purchases];
+          bulkPurchases.forEach(pd => {
+            let ep = newProducts.find(p => 
+              p.name.toLowerCase() === pd.productName.toLowerCase() && 
+              (p.department || 'restaurant') === (pd.department || 'restaurant')
+            );
+            let pid = ep?.id;
+            if (!ep) {
+              pid = generateId();
+              newProducts.push({ id: pid, code: pd.code, name: pd.productName, unit: pd.unit, category: pd.category || 'General', minBalance: 0, department: pd.department });
+            } else if (pd.code && !ep.code) { 
+              newProducts = newProducts.map(p => p.id === ep!.id ? { ...p, code: pd.code } : p);
+            }
+            newPurchases.push({ id: generateId(), date: pd.date, productId: pid!, quantity: pd.quantity, price: pd.price, total: pd.quantity * pd.price, supplier: pd.supplier || '', department: pd.department });
+          });
+          return { products: newProducts, purchases: newPurchases };
         });
-        set({ products: newProducts, purchases: newPurchases });
         get().addLog('Bulk Import', `${bulkPurchases.length} purchases imported from Excel`);
       },
 
       saveInventoryAudit: (audit) => {
-        const state = get();
-        const idx = state.inventoryAudits.findIndex(a => a.date === audit.date && a.department === audit.department);
-        const newAudits = [...state.inventoryAudits];
-        if (idx >= 0) { newAudits[idx] = { ...newAudits[idx], balances: audit.balances }; }
-        else { newAudits.push({ id: generateId(), ...audit }); }
-        set({ inventoryAudits: newAudits });
+        updateUser(set, get, (data) => {
+          const idx = data.inventoryAudits.findIndex(a => a.date === audit.date && a.department === audit.department);
+          const newAudits = [...data.inventoryAudits];
+          if (idx >= 0) { newAudits[idx] = { ...newAudits[idx], balances: audit.balances }; }
+          else { newAudits.push({ id: generateId(), ...audit }); }
+          return { inventoryAudits: newAudits };
+        });
         get().addLog('Inventory Saved', `Audit for date ${audit.date} (${audit.department || 'restaurant'})`);
       },
 
       // === SUPPLIER PAYMENTS ===
       addSupplierPayment: (data) => {
-        set((state) => ({ supplierPayments: [...state.supplierPayments, { id: generateId(), ...data }] }));
+        updateUser(set, get, (tenantData) => ({ supplierPayments: [...tenantData.supplierPayments, { id: generateId(), ...data }] }));
         get().addLog('Payment Added', `${data.supplier}: ${data.amount}`);
       },
       editSupplierPayment: (id, data) => {
-        set((state) => ({ supplierPayments: state.supplierPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
+        updateUser(set, get, (tenantData) => ({ supplierPayments: tenantData.supplierPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
         get().addLog('Payment Edited', `${data.supplier}: ${data.amount}`);
       },
       deleteSupplierPayment: (id) => {
-        const p = get().supplierPayments.find(x => x.id === id);
-        set((state) => ({ supplierPayments: state.supplierPayments.filter(x => x.id !== id) }));
+        const p = get().getSupplierPayments().find(x => x.id === id);
+        updateUser(set, get, (tenantData) => ({ supplierPayments: tenantData.supplierPayments.filter(x => x.id !== id) }));
         get().addLog('Payment Deleted', `${p?.supplier || 'Unknown'}`);
       },
 
       // === CUSTOMER PAYMENTS ===
       addCustomerPayment: (data) => {
-        set((state) => ({ customerPayments: [...state.customerPayments, { id: generateId(), ...data }] }));
+        updateUser(set, get, (tenantData) => ({ customerPayments: [...tenantData.customerPayments, { id: generateId(), ...data }] }));
         get().addLog('Customer Payment Added', `${data.customer}: ${data.amount}`);
       },
       editCustomerPayment: (id, data) => {
-        set((state) => ({ customerPayments: state.customerPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
+        updateUser(set, get, (tenantData) => ({ customerPayments: tenantData.customerPayments.map(p => p.id === id ? { ...p, ...data } : p) }));
         get().addLog('Customer Payment Edited', `${data.customer}: ${data.amount}`);
       },
       deleteCustomerPayment: (id) => {
-        const p = get().customerPayments.find(x => x.id === id);
-        set((state) => ({ customerPayments: state.customerPayments.filter(x => x.id !== id) }));
+        const p = get().getCustomerPayments().find(x => x.id === id);
+        updateUser(set, get, (tenantData) => ({ customerPayments: tenantData.customerPayments.filter(x => x.id !== id) }));
         get().addLog('Customer Payment Deleted', `${p?.customer || 'Unknown'}`);
       },
 
       // === BREAKFAST ===
       saveBreakfastMenu: (day, menu) => {
-        set((state) => ({ breakfastMenus: { ...state.breakfastMenus, [day]: menu } }));
+        updateUser(set, get, (data) => ({ breakfastMenus: { ...data.breakfastMenus, [day]: menu } }));
         get().addLog('Breakfast Menu Saved', day);
       },
 
       logBreakfast: (roomNumber, guestCount, debtor) => {
-        const state = get();
         const today = new Date().toISOString().split('T')[0];
         const dayOfWeek = getDayOfWeek(today);
-        const menu = state.breakfastMenus[dayOfWeek];
         const logId = generateId();
-        const totalRevenue = menu ? menu.pricePerGuest * guestCount : 0;
+        
+        updateUser(set, get, (data) => {
+          const menu = data.breakfastMenus[dayOfWeek];
+          const totalRevenue = menu ? menu.pricePerGuest * guestCount : 0;
 
-        // Create direct consumptions
-        const newConsumptions: DirectConsumption[] = [];
-        if (menu && menu.ingredients.length > 0) {
-          menu.ingredients.forEach(ing => {
-            const gross = getGrossQuantity(ing.quantity, ing.lossPercentage || 0);
-            newConsumptions.push({
-              id: generateId(),
-              date: today,
-              productId: ing.productId,
-              quantity: gross * guestCount,
-              source: 'breakfast',
-              reference: logId,
-              department: 'breakfast',
+          // Create direct consumptions
+          const newConsumptions: DirectConsumption[] = [];
+          if (menu && menu.ingredients.length > 0) {
+            menu.ingredients.forEach(ing => {
+              const gross = getGrossQuantity(ing.quantity, ing.lossPercentage || 0);
+              newConsumptions.push({
+                id: generateId(),
+                date: today,
+                productId: ing.productId,
+                quantity: gross * guestCount,
+                source: 'breakfast',
+                reference: logId,
+                department: 'breakfast',
+              });
             });
-          });
-        }
+          }
 
-        const newLog: BreakfastLog = { id: logId, date: today, roomNumber, guestCount, dayOfWeek, debtor, totalRevenue };
-
-        set((state) => ({
-          breakfastLogs: [...state.breakfastLogs, newLog],
-          directConsumptions: [...state.directConsumptions, ...newConsumptions],
-        }));
+          const newLog: BreakfastLog = { id: logId, date: today, roomNumber, guestCount, dayOfWeek, debtor, totalRevenue };
+          return {
+            breakfastLogs: [...data.breakfastLogs, newLog],
+            directConsumptions: [...data.directConsumptions, ...newConsumptions],
+          };
+        });
         get().addLog('Breakfast Served', `Room ${roomNumber}, ${guestCount} guests (${dayOfWeek})${debtor ? ` to ${debtor}` : ''}`);
       },
 
       deleteBreakfastLog: (id) => {
-        set((state) => ({
-          breakfastLogs: state.breakfastLogs.filter(l => l.id !== id),
-          directConsumptions: state.directConsumptions.filter(dc => dc.reference !== id),
+        updateUser(set, get, (data) => ({
+          breakfastLogs: data.breakfastLogs.filter(l => l.id !== id),
+          directConsumptions: data.directConsumptions.filter(dc => dc.reference !== id),
         }));
         get().addLog('Breakfast Log Deleted', id);
       },
 
       // === HOUSEKEEPING ===
       saveHousekeepingBOM: (items) => {
-        set({ housekeepingBOM: items });
+        updateUser(set, get, () => ({ housekeepingBOM: items }));
         get().addLog('Housekeeping BOM Saved', `${items.length} items`);
       },
 
       addRoom: (roomData) => {
-        set((state) => ({ rooms: [...state.rooms, { id: generateId(), ...roomData }] }));
+        updateUser(set, get, (data) => ({ rooms: [...data.rooms, { id: generateId(), ...roomData }] }));
         get().addLog('Room Added', `Room ${roomData.number}`);
       },
 
       deleteRoom: (id) => {
-        const room = get().rooms.find(r => r.id === id);
-        set((state) => ({ rooms: state.rooms.filter(r => r.id !== id) }));
+        const room = get().getRooms().find(r => r.id === id);
+        updateUser(set, get, (data) => ({ rooms: data.rooms.filter(r => r.id !== id) }));
         get().addLog('Room Deleted', `Room ${room?.number || id}`);
       },
 
       updateRoomStatus: (id, status, guestCount) => {
         const state = get();
-        const room = state.rooms.find(r => r.id === id);
+        const room = state.getRooms().find(r => r.id === id);
         if (!room) return;
 
         const updatedRoom = { ...room, status, guestCount: guestCount !== undefined ? guestCount : room.guestCount };
 
-        // When marking as 'clean', consume housekeeping materials
-        const newConsumptions: DirectConsumption[] = [];
-        let logId = '';
-        if (status === 'clean' && updatedRoom.guestCount > 0 && state.housekeepingBOM.length > 0) {
-          logId = generateId();
-          state.housekeepingBOM.forEach(item => {
-            newConsumptions.push({
-              id: generateId(),
-              date: new Date().toISOString().split('T')[0],
-              productId: item.productId,
-              quantity: item.quantity * updatedRoom.guestCount,
-              source: 'housekeeping',
-              reference: logId,
-              department: 'housekeeping',
+        updateUser(set, get, (data) => {
+          // When marking as 'clean', consume housekeeping materials
+          const newConsumptions: DirectConsumption[] = [];
+          let logId = '';
+          if (status === 'clean' && updatedRoom.guestCount > 0 && data.housekeepingBOM.length > 0) {
+            logId = generateId();
+            data.housekeepingBOM.forEach(item => {
+              newConsumptions.push({
+                id: generateId(),
+                date: new Date().toISOString().split('T')[0],
+                productId: item.productId,
+                quantity: item.quantity * updatedRoom.guestCount,
+                source: 'housekeeping',
+                reference: logId,
+                department: 'housekeeping',
+              });
             });
-          });
-        }
+          }
 
-        const newHKLog: HousekeepingLog | null = status === 'clean' && updatedRoom.guestCount > 0 ? {
-          id: logId || generateId(),
-          date: new Date().toISOString().split('T')[0],
-          roomId: id,
-          roomNumber: room.number,
-          guestCount: updatedRoom.guestCount,
-        } : null;
+          const newHKLog: HousekeepingLog | null = status === 'clean' && updatedRoom.guestCount > 0 ? {
+            id: logId || generateId(),
+            date: new Date().toISOString().split('T')[0],
+            roomId: id,
+            roomNumber: room.number,
+            guestCount: updatedRoom.guestCount,
+          } : null;
 
-        set((state) => ({
-          rooms: state.rooms.map(r => r.id === id ? updatedRoom : r),
-          directConsumptions: [...state.directConsumptions, ...newConsumptions],
-          housekeepingLogs: newHKLog ? [...state.housekeepingLogs, newHKLog] : state.housekeepingLogs,
-        }));
-
-        // Reset guest count after cleaning
-        if (status === 'clean') {
-          set((state) => ({ rooms: state.rooms.map(r => r.id === id ? { ...r, guestCount: 0 } : r) }));
-        }
+          return {
+            rooms: data.rooms.map(r => r.id === id ? (status === 'clean' ? { ...updatedRoom, guestCount: 0 } : updatedRoom) : r),
+            directConsumptions: [...data.directConsumptions, ...newConsumptions],
+            housekeepingLogs: newHKLog ? [...data.housekeepingLogs, newHKLog] : data.housekeepingLogs,
+          };
+        });
 
         get().addLog('Room Status', `Room ${room.number} → ${status}${guestCount ? ` (${guestCount} guests)` : ''}`);
       },
 
       deleteHousekeepingLog: (id) => {
-        set((state) => ({
-          housekeepingLogs: state.housekeepingLogs.filter(l => l.id !== id),
-          directConsumptions: state.directConsumptions.filter(dc => dc.reference !== id),
+        updateUser(set, get, (data) => ({
+          housekeepingLogs: data.housekeepingLogs.filter(l => l.id !== id),
+          directConsumptions: data.directConsumptions.filter(dc => dc.reference !== id),
         }));
         get().addLog('HK Log Deleted', id);
       },
 
       // === SYSTEM ===
       clearAllData: () => {
-        set({
-          products: [], purchases: [], sales: [], dishes: [],
-          inventoryAudits: [], activityLogs: [], supplierPayments: [], customerPayments: [],
-          breakfastMenus: defaultWeeklyMenus(), breakfastLogs: [],
-          housekeepingBOM: [], rooms: [], housekeepingLogs: [], directConsumptions: [],
-        });
+        updateUser(set, get, () => createEmptyTenantData());
         get().addLog('System Wipe', 'All system data was completely wiped');
       },
 
       restoreData: (parsedData: any) => {
-        set((state: any) => ({
-          ...state,
+        updateUser(set, get, (state: any) => ({
           products: parsedData.products || state.products,
           purchases: parsedData.purchases || state.purchases,
           sales: parsedData.sales || state.sales,
@@ -477,8 +557,7 @@ export const useAppStore = create<AppState>()(
 
       executeChefsGrandOpeningTest: () => {
         const today = new Date().toISOString().split('T')[0];
-        set({ products: [], purchases: [], sales: [], dishes: [], inventoryAudits: [], activityLogs: [], supplierPayments: [], breakfastLogs: [], housekeepingLogs: [], directConsumptions: [] });
-
+        
         const meats = ['Ribeye','Tenderloin','Lamb Chops','Pork Belly','Chicken Breast','Duck Breast','Veal Chop','Wagyu Beef','Quail','Venison'];
         const fish = ['Sea Bass','Salmon','Tuna','Shrimp','Scallops','Octopus','Squid','Lobster','Crab','Caviar'];
         const veg = ['Tomato','Cucumber','Onion','Mushroom','Eggplant','Zucchini','Red Bell Pepper','Green Bell Pepper','Potato','Carrot','Broccoli','Cauliflower','Asparagus','Spinach','Garlic','Cherry Tomato','Artichoke','Sweet Potato','Leek','Celery'];
@@ -520,7 +599,9 @@ export const useAppStore = create<AppState>()(
         const sd=[...gD].sort(()=>0.5-Math.random()).slice(0,15);
         sd.forEach((dish,idx)=>{gS.push({id:`SALE-CHEF-${idx}`,date:today,dishId:dish.id,quantity:20,totalRevenue:20*dish.salePrice});});
 
-        set({ products: gP, purchases: gPu, dishes: gD, sales: gS, inventoryAudits: [], supplierPayments: [], customerPayments: [] });
+        updateUser(set, get, () => ({
+          products: gP, purchases: gPu, dishes: gD, sales: gS, inventoryAudits: [], supplierPayments: [], customerPayments: []
+        }));
         get().addLog('System Test', 'Chef Grand Opening data generated successfully');
       },
     }),

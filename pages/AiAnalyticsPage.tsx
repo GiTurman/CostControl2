@@ -9,7 +9,12 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import * as XLSX from 'xlsx';
 
 export const AiAnalyticsPage: React.FC = () => {
-  const { language, products, purchases, sales, dishes, inventoryAudits } = useAppStore();
+  const { language, getProducts, getPurchases, getSales, getDishes, getInventoryAudits } = useAppStore();
+  const products = getProducts();
+  const purchases = getPurchases();
+  const sales = getSales();
+  const dishes = getDishes();
+  const inventoryAudits = getInventoryAudits();
 
   // Filters State
   const [priceSearchTerm, setPriceSearchTerm] = useState('');
