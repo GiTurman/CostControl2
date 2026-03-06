@@ -38,7 +38,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       items.push({ path: `${basePath}/breakfast`, label: language === 'ka' ? 'საუზმე (ოპერაციები)' : 'Breakfast (Ops)', icon: Coffee });
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     } else if (dept === 'housekeeping') {
-      items.push({ path: `${basePath}/housekeeping`, label: language === 'ka' ? 'დასუფთავება (ოპერაციები)' : 'Housekeeping (Ops)', icon: Sparkles });
+      items.push({ path: `${basePath}/housekeeping`, label: language === 'ka' ? 'ჰაუს ქიფინგი (ოპერაციები)' : 'Housekeeping (Ops)', icon: Sparkles });
+      items.push({ path: `${basePath}/housekeeping?tab=consumption`, label: language === 'ka' ? 'ხარჯვა (ჰაუს ქიფინგი)' : 'Consumption (HK)', icon: ClipboardList });
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     }
 

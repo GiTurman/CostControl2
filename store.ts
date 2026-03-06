@@ -94,7 +94,9 @@ interface AppState {
   deleteRoom: (id: string) => void;
   updateRoomStatus: (id: string, status: RoomStatus, guestCount?: number) => void;
   deleteHousekeepingLog: (id: string) => void;
-
+  addDirectConsumption: (consumption: any) => void;
+  deleteDirectConsumption: (id: string) => void;
+  
   // System
   clearAllData: () => void;
   restoreData: (data: Partial<TenantData>) => void;
@@ -551,6 +553,23 @@ export const useAppStore = create<AppState>()(
           directConsumptions: data.directConsumptions.filter(dc => dc.reference !== id),
         }));
         get().addLog('HK Log Deleted', id);
+      },
+
+      addDirectConsumption: (consumption) => {
+        const product = get().getProducts().find(p => p.id === consumption.productId);
+        updateUser(set, get, (data) => ({
+          directConsumptions: [...data.directConsumptions, { id: generateId(), ...consumption }]
+        }));
+        get().addLog('Manual Consumption', `${product?.name || 'Unknown'} x${consumption.quantity} (${consumption.department})`);
+      },
+
+      deleteDirectConsumption: (id) => {
+        const consumption = get().getDirectConsumptions().find(c => c.id === id);
+        const product = get().getProducts().find(p => p.id === consumption?.productId);
+        updateUser(set, get, (data) => ({
+          directConsumptions: data.directConsumptions.filter(c => c.id !== id)
+        }));
+        get().addLog('Consumption Deleted', `${product?.name || 'Unknown'} x${consumption?.quantity || 0}`);
       },
 
       // === SYSTEM ===

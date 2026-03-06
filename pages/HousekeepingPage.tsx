@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '../store';
 import { t } from '../i18n';
 import { HousekeepingBOMItem, RoomStatus } from '../types';
@@ -13,16 +14,32 @@ const STATUS_COLORS: Record<RoomStatus, { bg: string; text: string; border: stri
 const STATUS_ORDER: RoomStatus[] = ['dirty', 'in_progress', 'clean'];
 
 export const HousekeepingPage: React.FC = () => {
-  const { language, getProducts, getRooms, addRoom, deleteRoom, updateRoomStatus, getHousekeepingBOM, saveHousekeepingBOM, getHousekeepingLogs } = useAppStore();
+  const { language, getProducts, getRooms, addRoom, deleteRoom, updateRoomStatus, getHousekeepingBOM, saveHousekeepingBOM, getHousekeepingLogs, getDirectConsumptions, addDirectConsumption, deleteDirectConsumption } = useAppStore();
+  const [searchParams] = useSearchParams();
   const products = getProducts();
   const rooms = getRooms();
   const housekeepingBOM = getHousekeepingBOM();
   const housekeepingLogs = getHousekeepingLogs();
+  const directConsumptions = getDirectConsumptions();
 
   const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'housekeeping'), [products]);
+  const allProducts = useMemo(() => [...products].sort((a, b) => a.name.localeCompare(b.name)), [products]);
 
-  const [activeTab, setActiveTab] = useState<'rooms' | 'bom' | 'setup'>('rooms');
+  const [activeTab, setActiveTab] = useState<'rooms' | 'bom' | 'consumption' | 'setup'>('consumption');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'consumption' || tab === 'rooms' || tab === 'bom' || tab === 'setup') {
+      setActiveTab(tab as any);
+    }
+  }, [searchParams]);
+
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  // Manual Consumption state
+  const [consDate, setConsDate] = useState(new Date().toISOString().split('T')[0]);
+  const [consProductId, setConsProductId] = useState('');
+  const [consQuantity, setConsQuantity] = useState('');
 
   // BOM editor
   const [editBOM, setEditBOM] = useState<HousekeepingBOMItem[]>(housekeepingBOM || []);
@@ -108,8 +125,8 @@ export const HousekeepingPage: React.FC = () => {
         <div className="flex items-center space-x-4">
           <div className="bg-teal-100 p-3 rounded-xl"><Sparkles className="w-6 h-6 text-teal-600" /></div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">{language === 'ka' ? 'ჰაუსქიფინგი' : 'Housekeeping'}</h2>
-            <p className="text-sm text-gray-500 mt-0.5">{language === 'ka' ? 'ოთახების მართვა და მასალების ჩამოწერა' : 'Room management & material consumption'}</p>
+            <h2 className="text-xl font-bold text-gray-900">{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}</h2>
+            <p className="text-sm text-gray-500 mt-0.5">{language === 'ka' ? 'ოთახების მართვა და მასალების ხარჯვის აღრიცხვა' : 'Room management & consumption tracking'}</p>
           </div>
         </div>
         {/* Status summary */}
@@ -130,6 +147,9 @@ export const HousekeepingPage: React.FC = () => {
           </button>
           <button onClick={() => setActiveTab('bom')} className={`flex-1 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'bom' ? 'text-teal-700 border-b-2 border-teal-600 bg-teal-50' : 'text-gray-500 hover:bg-gray-50'}`}>
             <ClipboardList className="w-4 h-4" />{language === 'ka' ? 'სტანდარტი' : 'Standard BOM'}
+          </button>
+          <button onClick={() => setActiveTab('consumption')} className={`flex-1 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'consumption' ? 'text-teal-700 border-b-2 border-teal-600 bg-teal-50' : 'text-gray-500 hover:bg-gray-50'}`}>
+            <ClipboardList className="w-4 h-4" />{language === 'ka' ? 'ხარჯვა' : 'Consumption'}
           </button>
           <button onClick={() => setActiveTab('setup')} className={`flex-1 px-4 py-3 text-sm font-bold flex items-center justify-center gap-2 ${activeTab === 'setup' ? 'text-teal-700 border-b-2 border-teal-600 bg-teal-50' : 'text-gray-500 hover:bg-gray-50'}`}>
             <Settings className="w-4 h-4" />{language === 'ka' ? 'პარამეტრები' : 'Setup'}
@@ -241,6 +261,102 @@ export const HousekeepingPage: React.FC = () => {
               <button onClick={handleSaveBOM} className="flex items-center px-4 py-1.5 bg-teal-600 text-white rounded-lg text-xs font-bold hover:bg-teal-700 transition-all">
                 <Save className="w-3.5 h-3.5 mr-1" />{language === 'ka' ? 'შენახვა' : 'Save'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== MANUAL CONSUMPTION ===== */}
+        {activeTab === 'consumption' && (
+          <div className="p-6 space-y-8">
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Plus className="w-4 h-4 text-teal-600" />
+                {language === 'ka' ? 'ახალი ხარჯვა' : 'New Consumption'}
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">{language === 'ka' ? 'თარიღი' : 'Date'}</label>
+                  <input type="date" value={consDate} onChange={e => setConsDate(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" />
+                </div>
+                <div className="sm:col-span-1">
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">{language === 'ka' ? 'პროდუქტი' : 'Product'}</label>
+                  <select value={consProductId} onChange={e => setConsProductId(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm bg-white">
+                    <option value="">{language === 'ka' ? 'აირჩიეთ...' : 'Select...'}</option>
+                    {allProducts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">{language === 'ka' ? 'რაოდენობა' : 'Quantity'}</label>
+                  <input type="number" min="0" step="0.001" value={consQuantity} onChange={e => setConsQuantity(e.target.value)} placeholder="0.00" className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm" />
+                </div>
+                <button 
+                  onClick={() => {
+                    if (!consProductId || !consQuantity) return;
+                    addDirectConsumption({
+                      date: consDate,
+                      productId: consProductId,
+                      quantity: Number(consQuantity),
+                      source: 'manual',
+                      department: 'housekeeping'
+                    });
+                    setConsProductId('');
+                    setConsQuantity('');
+                    setAlertMessage(language === 'ka' ? 'ხარჯვა დამატებულია!' : 'Consumption added!');
+                  }}
+                  className="px-4 py-2 bg-teal-600 text-white rounded-xl text-sm font-bold hover:bg-teal-700 transition-all shadow-sm active:scale-95"
+                >
+                  {language === 'ka' ? 'დამატება' : 'Add'}
+                </button>
+              </div>
+            </div>
+
+            {/* Consumption History */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-teal-600" />
+                {language === 'ka' ? 'ხარჯვის ისტორია' : 'Consumption History'}
+              </h3>
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table className="min-w-full text-sm divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-bold text-slate-500">{language === 'ka' ? 'თარიღი' : 'Date'}</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-500">{language === 'ka' ? 'პროდუქტი' : 'Product'}</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-500">{language === 'ka' ? 'რაოდენობა' : 'Quantity'}</th>
+                      <th className="px-4 py-3 text-left font-bold text-slate-500">{language === 'ka' ? 'წყარო' : 'Source'}</th>
+                      <th className="px-4 py-3 text-center font-bold text-slate-500 w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {directConsumptions
+                      .filter(c => c.department === 'housekeeping')
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .slice(0, 50)
+                      .map(c => (
+                        <tr key={c.id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 text-slate-600">{c.date}</td>
+                          <td className="px-4 py-3 font-bold text-slate-800">{getProductName(c.productId)}</td>
+                          <td className="px-4 py-3 text-slate-700">{c.quantity} {products.find(p => p.id === c.productId)?.unit}</td>
+                          <td className="px-4 py-3">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${c.source === 'manual' ? 'bg-blue-100 text-blue-700' : 'bg-teal-100 text-teal-700'}`}>
+                              {c.source === 'manual' ? (language === 'ka' ? 'ხელით' : 'Manual') : (language === 'ka' ? 'ავტო' : 'Auto')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button onClick={() => deleteDirectConsumption(c.id)} className="text-red-400 hover:text-red-600 p-1"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </td>
+                        </tr>
+                      ))}
+                    {directConsumptions.filter(c => c.department === 'housekeeping').length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-12 text-center text-slate-400 italic">
+                          {language === 'ka' ? 'ხარჯვა არ ფიქსირდება' : 'No consumption records found'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

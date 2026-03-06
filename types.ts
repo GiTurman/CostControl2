@@ -164,7 +164,7 @@ export interface DirectConsumption {
   date: string;
   productId: string;
   quantity: number;
-  source: 'breakfast' | 'housekeeping';
-  reference: string;
+  source: 'breakfast' | 'housekeeping' | 'manual';
+  reference?: string;
   department?: Department;
 }
