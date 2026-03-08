@@ -9,14 +9,15 @@ import * as XLSX from 'xlsx';
 export const MenuPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
+  const effectiveDept = (currentDept === 'breakfast' || currentDept === 'restaurant') ? 'restaurant' : currentDept;
   const { language, getDishes, getProducts, getPurchases, addDish, editDish, deleteDish } = useAppStore();
   const dishes = getDishes();
   const products = getProducts();
   const purchases = getPurchases();
   
   const deptDishes = useMemo(() => dishes.filter(d => (d.department || 'restaurant') === currentDept), [dishes, currentDept]);
-  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === currentDept), [products, currentDept]);
-  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === currentDept), [purchases, currentDept]);
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === effectiveDept), [products, effectiveDept]);
+  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === effectiveDept), [purchases, effectiveDept]);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDishId, setEditingDishId] = useState<string | null>(null);

@@ -9,6 +9,8 @@ import * as XLSX from 'xlsx';
 export const InventoryPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
+  const effectiveDept = (currentDept === 'breakfast' || currentDept === 'restaurant') ? 'restaurant' : currentDept;
+  const isShared = currentDept === 'breakfast' || currentDept === 'restaurant';
   const { language, getProducts, getPurchases, getSales, getDishes, getInventoryAudits, saveInventoryAudit, getDirectConsumptions } = useAppStore();
   const products = getProducts();
   const purchases = getPurchases();
@@ -33,7 +35,7 @@ export const InventoryPage: React.FC = () => {
 
   // Pre-fill actual balances if an audit already exists for the selected date
   useEffect(() => {
-    const currentAudit = inventoryAudits.find(a => a.date === selectedDate && (a.department || 'restaurant') === currentDept);
+    const currentAudit = inventoryAudits.find(a => a.date === selectedDate && (a.department || 'restaurant') === effectiveDept);
     if (currentAudit) {
       const prefilled = Object.entries(currentAudit.balances).reduce((acc, [k, v]) => {
         acc[k] = String(v);
@@ -48,7 +50,7 @@ export const InventoryPage: React.FC = () => {
   const inventoryData = useMemo(() => {
     // 1. Find the most recent audit strictly BEFORE the selected date
     const prevAudits = inventoryAudits
-      .filter(a => a.date < selectedDate && (a.department || 'restaurant') === currentDept)
+      .filter(a => a.date < selectedDate && (a.department || 'restaurant') === effectiveDept)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     const lastAudit = prevAudits.length > 0 ? prevAudits[0] : null;
@@ -57,14 +59,18 @@ export const InventoryPage: React.FC = () => {
     // 2. Filter records only within the current "period" 
     // (after lastAuditDate up to selectedDate)
     const windowPurchases = purchases.filter(p => {
-      if ((p.department || 'restaurant') !== currentDept) return false;
+      const pDept = p.department || 'restaurant';
+      const isMatch = isShared ? (pDept === 'restaurant' || pDept === 'breakfast') : pDept === currentDept;
+      if (!isMatch) return false;
       if (p.date > selectedDate) return false;
       if (lastAuditDate && p.date <= lastAuditDate) return false;
       return true;
     });
 
     const windowSales = sales.filter(s => {
-      if ((s.department || 'restaurant') !== currentDept) return false;
+      const sDept = s.department || 'restaurant';
+      const isMatch = isShared ? (sDept === 'restaurant' || sDept === 'breakfast') : sDept === currentDept;
+      if (!isMatch) return false;
       if (s.date > selectedDate) return false;
       if (lastAuditDate && s.date <= lastAuditDate) return false;
       return true;
@@ -90,7 +96,9 @@ export const InventoryPage: React.FC = () => {
 
     // 4b. Add direct consumptions (breakfast & housekeeping)
     const windowDirect = (directConsumptions || []).filter((dc: any) => {
-      if ((dc.department || 'restaurant') !== currentDept) return false;
+      const dcDept = dc.department || 'restaurant';
+      const isMatch = isShared ? (dcDept === 'restaurant' || dcDept === 'breakfast') : dcDept === currentDept;
+      if (!isMatch) return false;
       if (dc.date > selectedDate) return false;
       if (lastAuditDate && dc.date <= lastAuditDate) return false;
       return true;
@@ -99,7 +107,10 @@ export const InventoryPage: React.FC = () => {
       consumedMap[dc.productId] = (consumedMap[dc.productId] || 0) + dc.quantity;
     });
 
-    const deptProducts = products.filter(p => (p.department || 'restaurant') === currentDept);
+    const deptProducts = products.filter(p => {
+      const pDept = p.department || 'restaurant';
+      return isShared ? (pDept === 'restaurant' || pDept === 'breakfast') : pDept === currentDept;
+    });
 
     return deptProducts.map((prod, index) => {
       // 5. Build the row data
@@ -147,7 +158,7 @@ export const InventoryPage: React.FC = () => {
       }
     });
 
-    saveInventoryAudit({ date: selectedDate, balances: balancesToSave, department: currentDept });
+    saveInventoryAudit({ date: selectedDate, balances: balancesToSave, department: effectiveDept });
     
     // Update local inputs to reflect saved defaults
     const updatedInputs = Object.keys(balancesToSave).reduce((acc, k) => {

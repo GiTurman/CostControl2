@@ -9,11 +9,12 @@ import * as XLSX from 'xlsx';
 export const PurchasesPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
+  const effectiveDept = (currentDept === 'breakfast' || currentDept === 'restaurant') ? 'restaurant' : currentDept;
   const { language, addPurchase, editPurchase, bulkAddPurchases, deletePurchase, getPurchases, getProducts } = useAppStore();
   const purchases = getPurchases();
   const products = getProducts();
 
-  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === currentDept), [purchases, currentDept]);
+  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === effectiveDept), [purchases, effectiveDept]);
   
   // Date state specifically for the bulk Excel import
   const [importDate, setImportDate] = useState(new Date().toISOString().split('T')[0]);
@@ -76,7 +77,7 @@ export const PurchasesPage: React.FC = () => {
       price: Number(formData.price),
       category: formData.category.trim() || 'General',
       supplier: formData.supplier.trim(),
-      department: currentDept,
+      department: effectiveDept,
     });
 
     setFormData((prev) => ({
@@ -105,7 +106,7 @@ export const PurchasesPage: React.FC = () => {
       price: Number(editFormData.price),
       category: editFormData.category.trim() || 'General',
       supplier: editFormData.supplier.trim(),
-      department: currentDept,
+      department: effectiveDept,
     });
 
     setEditingPurchase(null);
@@ -222,7 +223,7 @@ export const PurchasesPage: React.FC = () => {
             price: price,
             category: 'General',
             supplier: supplierRaw.toString().trim(),
-            department: currentDept,
+            department: effectiveDept,
           });
         }
 

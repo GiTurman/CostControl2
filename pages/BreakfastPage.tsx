@@ -28,8 +28,14 @@ export const BreakfastPage: React.FC = () => {
   const breakfastLogs = getBreakfastLogs();
   const rooms = getRooms();
 
-  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === 'breakfast'), [products]);
-  const deptPurchases = useMemo(() => purchases.filter(p => (p.department || 'restaurant') === 'breakfast'), [purchases]);
+  const deptProducts = useMemo(() => products.filter(p => {
+    const pDept = p.department || 'restaurant';
+    return pDept === 'restaurant' || pDept === 'breakfast';
+  }), [products]);
+  const deptPurchases = useMemo(() => purchases.filter(p => {
+    const pDept = p.department || 'restaurant';
+    return pDept === 'restaurant' || pDept === 'breakfast';
+  }), [purchases]);
 
   const [activeTab, setActiveTab] = useState<'pos' | 'menu'>('pos');
   const [selectedDay, setSelectedDay] = useState<DayOfWeek>(DAYS[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1].key);

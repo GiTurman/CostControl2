@@ -28,11 +28,13 @@ export const GlobalInventoryPage: React.FC = () => {
 
   const inventoryData = useMemo(() => {
     return products.map((prod: any) => {
-      const currentDept = prod.department || 'restaurant';
+      const prodDept = prod.department || 'restaurant';
+      const effectiveDept = (prodDept === 'breakfast' || prodDept === 'restaurant') ? 'restaurant' : prodDept;
+      const isShared = prodDept === 'breakfast' || prodDept === 'restaurant';
       
       // 1. Find the most recent audit strictly BEFORE the selected date for this product's department
       const prevAudits = inventoryAudits
-        .filter((a: any) => a.date < selectedDate && (a.department || 'restaurant') === currentDept)
+        .filter((a: any) => a.date < selectedDate && (a.department || 'restaurant') === effectiveDept)
         .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
       
       const lastAudit = prevAudits.length > 0 ? prevAudits[0] : null;
@@ -47,7 +49,9 @@ export const GlobalInventoryPage: React.FC = () => {
       });
 
       const windowSales = sales.filter((s: any) => {
-        if ((s.department || 'restaurant') !== currentDept) return false;
+        const sDept = s.department || 'restaurant';
+        const isMatch = isShared ? (sDept === 'restaurant' || sDept === 'breakfast') : sDept === prodDept;
+        if (!isMatch) return false;
         if (s.date > selectedDate) return false;
         if (lastAuditDate && s.date <= lastAuditDate) return false;
         return true;
@@ -72,6 +76,9 @@ export const GlobalInventoryPage: React.FC = () => {
       // 4b. Direct consumptions
       const windowDirect = (directConsumptions || []).filter((dc: any) => {
         if (dc.productId !== prod.id) return false;
+        const dcDept = dc.department || 'restaurant';
+        const isMatch = isShared ? (dcDept === 'restaurant' || dcDept === 'breakfast') : dcDept === prodDept;
+        if (!isMatch) return false;
         if (dc.date > selectedDate) return false;
         if (lastAuditDate && dc.date <= lastAuditDate) return false;
         return true;
@@ -87,7 +94,7 @@ export const GlobalInventoryPage: React.FC = () => {
         purchased,
         consumed,
         expectedBalance,
-        department: currentDept
+        department: prodDept
       };
     });
   }, [products, purchases, sales, dishes, inventoryAudits, selectedDate, directConsumptions]);

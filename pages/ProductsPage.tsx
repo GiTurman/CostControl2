@@ -9,13 +9,14 @@ import * as XLSX from 'xlsx';
 export const ProductsPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
+  const effectiveDept = (currentDept === 'breakfast' || currentDept === 'restaurant') ? 'restaurant' : currentDept;
   const { language, getProducts, updateProductMinBalance } = useAppStore();
   const products = getProducts();
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
 
-  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === currentDept), [products, currentDept]);
+  const deptProducts = useMemo(() => products.filter(p => (p.department || 'restaurant') === effectiveDept), [products, effectiveDept]);
 
   const filteredProducts = deptProducts.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
