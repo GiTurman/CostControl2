@@ -81,6 +81,7 @@ interface AppState {
   editPurchase: (id: string, purchase: Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }) => void;
   bulkAddPurchases: (purchases: Array<Omit<Purchase, 'id' | 'total' | 'productId'> & { productName: string; unit: string; category: string; code?: string; supplier?: string; department?: Department }>) => void;
   deletePurchase: (id: string) => void;
+  deletePurchasesByDate: (date: string, department?: Department) => void;
   addSale: (sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
   editSale: (id: string, sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
   deleteSale: (id: string) => void;
@@ -311,6 +312,13 @@ export const useAppStore = create<AppState>()(
         const product = get().getProducts().find(p => p.id === purchase?.productId);
         updateUser(set, get, (data) => ({ purchases: data.purchases.filter(p => p.id !== id) }));
         get().addLog('Purchase Deleted', `${product?.name || 'Unknown'} x${purchase?.quantity || 0}`);
+      },
+
+      deletePurchasesByDate: (date, department) => {
+        updateUser(set, get, (data) => ({
+          purchases: data.purchases.filter(p => !(p.date === date && (p.department || 'restaurant') === (department || 'restaurant')))
+        }));
+        get().addLog('Purchases Deleted by Date', `${date} (${department || 'restaurant'})`);
       },
 
       addSale: (saleData) => {

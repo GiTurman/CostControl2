@@ -10,7 +10,7 @@ export const PurchasesPage: React.FC = () => {
   const { department } = useParams<{ department: string }>();
   const currentDept = (department as Department) || 'restaurant';
   const effectiveDept = (currentDept === 'breakfast' || currentDept === 'restaurant') ? 'restaurant' : currentDept;
-  const { language, addPurchase, editPurchase, bulkAddPurchases, deletePurchase, getPurchases, getProducts } = useAppStore();
+  const { language, addPurchase, editPurchase, bulkAddPurchases, deletePurchase, deletePurchasesByDate, getPurchases, getProducts } = useAppStore();
   const purchases = getPurchases();
   const products = getProducts();
 
@@ -19,6 +19,7 @@ export const PurchasesPage: React.FC = () => {
   // Date state specifically for the bulk Excel import
   const [importDate, setImportDate] = useState(new Date().toISOString().split('T')[0]);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [dateToDelete, setDateToDelete] = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -504,7 +505,19 @@ export const PurchasesPage: React.FC = () => {
                           )}
                           <span className="font-bold text-slate-800 text-sm">{date}</span>
                         </div>
-                        <span className="font-bold text-slate-900 text-sm">{formatCurrency(dailyTotal)}</span>
+                        <div className="flex items-center gap-4">
+                          <span className="font-bold text-slate-900 text-sm">{formatCurrency(dailyTotal)}</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDateToDelete(date);
+                            }}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title={language === 'ka' ? 'დღის წაშლა' : 'Delete Day'}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </button>
 
                       {isExpanded && (
@@ -748,6 +761,32 @@ export const PurchasesPage: React.FC = () => {
             <div className="flex space-x-3">
               <button onClick={() => setItemToDelete(null)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium">{t(language, 'cancel')}</button>
               <button onClick={() => { deletePurchase(itemToDelete); setItemToDelete(null); }} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold">{t(language, 'delete')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {dateToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 transform transition-all">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">ყურადღება / Warning</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              {language === 'ka' 
+                ? `ნამდვილად გსურთ ${dateToDelete} თარიღის ყველა შესყიდვის წაშლა?` 
+                : `Are you sure you want to delete all purchases for ${dateToDelete}?`}
+            </p>
+            <div className="flex space-x-3">
+              <button onClick={() => setDateToDelete(null)} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium">{t(language, 'cancel')}</button>
+              <button 
+                onClick={() => { 
+                  deletePurchasesByDate(dateToDelete, effectiveDept); 
+                  setDateToDelete(null); 
+                }} 
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 font-bold"
+              >
+                {t(language, 'delete')}
+              </button>
             </div>
           </div>
         </div>
