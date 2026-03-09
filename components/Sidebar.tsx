@@ -22,6 +22,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const [breakfastExpanded, setBreakfastExpanded] = useState(false);
   const [housekeepingExpanded, setHousekeepingExpanded] = useState(false);
   const [technicalExpanded, setTechnicalExpanded] = useState(false);
+  const [consumptionExpanded, setConsumptionExpanded] = useState(false);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
@@ -40,11 +41,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     } else if (dept === 'housekeeping') {
       items.push({ path: `${basePath}/housekeeping`, label: language === 'ka' ? 'ჰაუს ქიფინგი (ოპერაციები)' : 'Housekeeping (Ops)', icon: Sparkles });
-      items.push({ path: `${basePath}/housekeeping?tab=consumption`, label: language === 'ka' ? 'ხარჯვა (ჰაუს ქიფინგი)' : 'Consumption (HK)', icon: ClipboardList });
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     } else if (dept === 'technical') {
       items.push({ path: `${basePath}/technical`, label: language === 'ka' ? 'ტექნიკური (ოპერაციები)' : 'Technical (Ops)', icon: Wrench });
-      items.push({ path: `${basePath}/technical?tab=consumption`, label: language === 'ka' ? 'ხარჯვა (ტექნიკური)' : 'Consumption (Tech)', icon: ClipboardList });
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     }
 
@@ -174,6 +173,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                       <Icon className="w-4 h-4 mr-2.5" />{item.label}
                     </NavLink></li>
                   );})}
+                </ul>
+              )}
+            </li>
+
+            {/* ხარჯვა (Dropdown) */}
+            <li>
+              <button onClick={() => setConsumptionExpanded(!consumptionExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${currentTab === 'consumption' && !consumptionExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><ClipboardList className="w-5 h-5 mr-3" />{language === 'ka' ? 'ხარჯვა' : 'Consumption'}</div>
+                {consumptionExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {consumptionExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  <li><NavLink to={`${basePath}/housekeeping?tab=consumption`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive && currentTab === 'consumption' ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <Sparkles className="w-4 h-4 mr-2.5" />{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}
+                  </NavLink></li>
+                  <li><NavLink to={`${basePath}/technical?tab=consumption`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive && currentTab === 'consumption' ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                    <Wrench className="w-4 h-4 mr-2.5" />{language === 'ka' ? 'ტექნიკური' : 'Technical'}
+                  </NavLink></li>
                 </ul>
               )}
             </li>
