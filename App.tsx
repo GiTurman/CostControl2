@@ -16,6 +16,8 @@ import { AiAnalyticsPage } from './pages/AiAnalyticsPage';
 import { DebtorPage } from './pages/DebtorPage';
 import { BreakfastPage } from './pages/BreakfastPage';
 import { HousekeepingPage } from './pages/HousekeepingPage';
+import { TechnicalPage } from './pages/TechnicalPage';
+import { InventoryArchivePage } from './pages/InventoryArchivePage';
 import { GlobalInventoryPage } from './pages/GlobalInventoryPage';
 import { t } from './i18n';
 import { Lock, ShieldCheck, AlertCircle } from 'lucide-react';
@@ -134,9 +136,11 @@ const App: React.FC = () => {
         <Route path="instructions" element={<InstructionsPage />} />
         <Route path="ai-analytics" element={<AiAnalyticsPage />} />
         <Route path="debtor" element={<DebtorPage />} />
+        <Route path="inventory-archive" element={<InventoryArchivePage />} />
         <Route path="global-inventory" element={<GlobalInventoryPage />} />
         <Route path="breakfast" element={<BreakfastPage />} />
         <Route path="housekeeping" element={<HousekeepingPage />} />
+        <Route path="technical" element={<TechnicalPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/HORECA/COSTCONTROL/0000000/dashboard" replace />} />
     </Routes>

@@ -161,6 +161,7 @@ export const GlobalInventoryPage: React.FC = () => {
               <option value="bar">{language === 'ka' ? 'ბარი' : 'Bar'}</option>
               <option value="breakfast">{language === 'ka' ? 'საუზმე' : 'Breakfast'}</option>
               <option value="housekeeping">{language === 'ka' ? 'ჰაუს ქიფინგი' : 'Housekeeping'}</option>
+              <option value="technical">{language === 'ka' ? 'ტექნიკური' : 'Technical'}</option>
             </select>
           </div>
 
@@ -214,6 +215,7 @@ export const GlobalInventoryPage: React.FC = () => {
                         item.department === 'restaurant' ? 'bg-blue-100 text-blue-700' :
                         item.department === 'bar' ? 'bg-purple-100 text-purple-700' :
                         item.department === 'breakfast' ? 'bg-amber-100 text-amber-700' :
+                        item.department === 'technical' ? 'bg-blue-100 text-blue-700' :
                         'bg-teal-100 text-teal-700'
                       }`}>
                         {item.department}

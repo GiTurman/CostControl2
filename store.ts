@@ -4,6 +4,7 @@ import {
   Product, Purchase, Sale, Dish, Language, InventoryAudit, Ingredient, ActivityLog,
   SupplierPayment, CustomerPayment, BreakfastDayMenu, DayOfWeek, WeeklyBreakfastMenus, BreakfastLog,
   HousekeepingBOMItem, Room, RoomStatus, HousekeepingLog, DirectConsumption, BreakfastIngredient, Department,
+  TechnicalBOMItem, TechnicalLog,
   User, TenantData
 } from './types';
 
@@ -30,6 +31,8 @@ const createEmptyTenantData = (): TenantData => ({
   housekeepingBOM: [],
   rooms: [],
   housekeepingLogs: [],
+  technicalBOM: [],
+  technicalLogs: [],
   directConsumptions: [],
 });
 
@@ -64,6 +67,8 @@ interface AppState {
   getHousekeepingBOM: () => HousekeepingBOMItem[];
   getRooms: () => Room[];
   getHousekeepingLogs: () => HousekeepingLog[];
+  getTechnicalBOM: () => TechnicalBOMItem[];
+  getTechnicalLogs: () => TechnicalLog[];
   getDirectConsumptions: () => DirectConsumption[];
 
   // Actions (Scoped to currentUserId)
@@ -80,6 +85,7 @@ interface AppState {
   editSale: (id: string, sale: Omit<Sale, 'id' | 'totalRevenue'>) => void;
   deleteSale: (id: string) => void;
   saveInventoryAudit: (audit: Omit<InventoryAudit, 'id'>) => void;
+  deleteInventoryAudit: (id: string) => void;
   addSupplierPayment: (payment: Omit<SupplierPayment, 'id'>) => void;
   editSupplierPayment: (id: string, payment: Omit<SupplierPayment, 'id'>) => void;
   deleteSupplierPayment: (id: string) => void;
@@ -94,6 +100,9 @@ interface AppState {
   deleteRoom: (id: string) => void;
   updateRoomStatus: (id: string, status: RoomStatus, guestCount?: number) => void;
   deleteHousekeepingLog: (id: string) => void;
+  saveTechnicalBOM: (items: TechnicalBOMItem[]) => void;
+  logTechnical: (taskName: string, quantity: number) => void;
+  deleteTechnicalLog: (id: string) => void;
   addDirectConsumption: (consumption: any) => void;
   deleteDirectConsumption: (id: string) => void;
   
@@ -263,6 +272,8 @@ export const useAppStore = create<AppState>()(
       getHousekeepingBOM: () => get().getCurrentUser()?.data.housekeepingBOM || [],
       getRooms: () => get().getCurrentUser()?.data.rooms || [],
       getHousekeepingLogs: () => get().getCurrentUser()?.data.housekeepingLogs || [],
+      getTechnicalBOM: () => get().getCurrentUser()?.data.technicalBOM || [],
+      getTechnicalLogs: () => get().getCurrentUser()?.data.technicalLogs || [],
       getDirectConsumptions: () => get().getCurrentUser()?.data.directConsumptions || [],
 
       // Actions
@@ -405,6 +416,13 @@ export const useAppStore = create<AppState>()(
           return { inventoryAudits: newAudits };
         });
         get().addLog('Inventory Saved', `Audit for date ${audit.date} (${audit.department || 'restaurant'})`);
+      },
+
+      deleteInventoryAudit: (id) => {
+        updateUser(set, get, (data) => ({
+          inventoryAudits: data.inventoryAudits.filter(a => a.id !== id)
+        }));
+        get().addLog('Inventory Audit Deleted', id);
       },
 
       // === SUPPLIER PAYMENTS ===
@@ -555,6 +573,56 @@ export const useAppStore = create<AppState>()(
         get().addLog('HK Log Deleted', id);
       },
 
+      // === TECHNICAL ===
+      saveTechnicalBOM: (items) => {
+        updateUser(set, get, () => ({ technicalBOM: items }));
+        get().addLog('Technical BOM Saved', `${items.length} items`);
+      },
+
+      logTechnical: (taskName, quantity) => {
+        const today = new Date().toISOString().split('T')[0];
+        const logId = generateId();
+        
+        updateUser(set, get, (data) => {
+          const newConsumptions: DirectConsumption[] = [];
+          if (data.technicalBOM.length > 0) {
+            data.technicalBOM.forEach(item => {
+              newConsumptions.push({
+                id: generateId(),
+                date: today,
+                productId: item.productId,
+                quantity: item.quantity * quantity,
+                source: 'technical',
+                reference: logId,
+                department: 'technical',
+              });
+            });
+          }
+
+          const newLog: TechnicalLog = {
+            id: logId,
+            date: today,
+            taskId: generateId(),
+            taskName,
+            quantity
+          };
+
+          return {
+            technicalLogs: [...data.technicalLogs, newLog],
+            directConsumptions: [...data.directConsumptions, ...newConsumptions],
+          };
+        });
+        get().addLog('Technical Task Logged', `${taskName} x${quantity}`);
+      },
+
+      deleteTechnicalLog: (id) => {
+        updateUser(set, get, (data) => ({
+          technicalLogs: data.technicalLogs.filter(l => l.id !== id),
+          directConsumptions: data.directConsumptions.filter(dc => dc.reference !== id),
+        }));
+        get().addLog('Technical Log Deleted', id);
+      },
+
       addDirectConsumption: (consumption) => {
         const product = get().getProducts().find(p => p.id === consumption.productId);
         updateUser(set, get, (data) => ({
@@ -593,6 +661,8 @@ export const useAppStore = create<AppState>()(
           housekeepingBOM: parsedData.housekeepingBOM || state.housekeepingBOM,
           rooms: parsedData.rooms || state.rooms,
           housekeepingLogs: parsedData.housekeepingLogs || state.housekeepingLogs,
+          technicalBOM: parsedData.technicalBOM || state.technicalBOM,
+          technicalLogs: parsedData.technicalLogs || state.technicalLogs,
           directConsumptions: parsedData.directConsumptions || state.directConsumptions,
         }));
         get().addLog('System Restore', 'Database restored successfully from backup file');

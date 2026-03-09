@@ -5,7 +5,7 @@ import { t } from '../i18n';
 import { 
   LayoutDashboard, Utensils, TrendingUp, ShoppingCart, Package, Boxes, X, Trash2,
   Settings, BookOpen, LineChart, LogOut, Landmark, ChevronDown, ChevronRight,
-  UtensilsCrossed, Sparkles, Coffee, Home, Wine, ClipboardList, PackageOpen
+  UtensilsCrossed, Sparkles, Coffee, Home, Wine, ClipboardList, PackageOpen, Wrench, Archive
 } from 'lucide-react';
 
 interface SidebarProps { isOpen: boolean; setIsOpen: (isOpen: boolean) => void; }
@@ -21,6 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const [barExpanded, setBarExpanded] = useState(false);
   const [breakfastExpanded, setBreakfastExpanded] = useState(false);
   const [housekeepingExpanded, setHousekeepingExpanded] = useState(false);
+  const [technicalExpanded, setTechnicalExpanded] = useState(false);
   const [debtorExpanded, setDebtorExpanded] = useState(false);
 
   const basePath = `/HORECA/COSTCONTROL/${restaurantId}`;
@@ -41,6 +42,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       items.push({ path: `${basePath}/housekeeping`, label: language === 'ka' ? 'ჰაუს ქიფინგი (ოპერაციები)' : 'Housekeeping (Ops)', icon: Sparkles });
       items.push({ path: `${basePath}/housekeeping?tab=consumption`, label: language === 'ka' ? 'ხარჯვა (ჰაუს ქიფინგი)' : 'Consumption (HK)', icon: ClipboardList });
       items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
+    } else if (dept === 'technical') {
+      items.push({ path: `${basePath}/technical`, label: language === 'ka' ? 'ტექნიკური (ოპერაციები)' : 'Technical (Ops)', icon: Wrench });
+      items.push({ path: `${basePath}/technical?tab=consumption`, label: language === 'ka' ? 'ხარჯვა (ტექნიკური)' : 'Consumption (Tech)', icon: ClipboardList });
+      items.push({ path: `${basePath}/${dept}/menu`, label: t(language, 'menu'), icon: Utensils });
     }
 
     // Sales
@@ -54,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     return items;
   };
 
-  const isDeptActive = (dept: string) => currentPath.includes(`/${dept}/`) || (dept === 'breakfast' && currentPath.endsWith('/breakfast')) || (dept === 'housekeeping' && currentPath.endsWith('/housekeeping'));
+  const isDeptActive = (dept: string) => currentPath.includes(`/${dept}/`) || (dept === 'breakfast' && currentPath.endsWith('/breakfast')) || (dept === 'housekeeping' && currentPath.endsWith('/housekeeping')) || (dept === 'technical' && currentPath.endsWith('/technical'));
 
   const bottomNavItems = [
     { path: `${basePath}/settings`, label: language === 'ka' ? 'პარამეტრები' : 'Settings', icon: Settings },
@@ -156,6 +161,23 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               )}
             </li>
 
+            {/* ტექნიკური (Dropdown) */}
+            <li>
+              <button onClick={() => setTechnicalExpanded(!technicalExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isDeptActive('technical') && !technicalExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <div className="flex items-center"><Wrench className="w-5 h-5 mr-3" />{language === 'ka' ? 'ტექნიკური' : 'Technical'}</div>
+                {technicalExpanded ? <ChevronDown className="w-4 h-4 opacity-60" /> : <ChevronRight className="w-4 h-4 opacity-60" />}
+              </button>
+              {technicalExpanded && (
+                <ul className="ml-6 border-l border-slate-700 space-y-0.5">
+                  {getSubItems('technical').map(item => { const Icon = item.icon; return (
+                    <li key={item.path}><NavLink end to={item.path} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>
+                      <Icon className="w-4 h-4 mr-2.5" />{item.label}
+                    </NavLink></li>
+                  );})}
+                </ul>
+              )}
+            </li>
+
             {/* დებიტორი */}
             <li>
               <button onClick={() => setDebtorExpanded(!debtorExpanded)} className={`w-full flex items-center justify-between px-6 py-3 text-sm font-medium transition-colors ${isOnDebtor && !debtorExpanded ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
@@ -168,6 +190,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   <li><button onClick={() => navigateDebtor('payments')} className={`w-full text-left pl-5 pr-4 py-2.5 text-sm font-medium transition-colors ${isOnDebtor && currentTab === 'payments' ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white text-slate-400'}`}>{language === 'ka' ? 'გადახდა' : 'Payments'}</button></li>
                 </ul>
               )}
+            </li>
+
+            {/* არქივი */}
+            <li>
+              <NavLink to={`${basePath}/inventory-archive`} onClick={() => setIsOpen(false)} className={({ isActive }) => `flex items-center px-6 py-3 text-sm font-medium transition-colors ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-slate-800 hover:text-white'}`}>
+                <Archive className="w-5 h-5 mr-3" />{language === 'ka' ? 'არქივი' : 'Archive'}
+              </NavLink>
             </li>
 
             {/* საერთო ინვენტარი */}

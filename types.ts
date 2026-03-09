@@ -2,7 +2,7 @@ export type Language = 'ka' | 'en';
 
 export type Unit = string;
 
-export type Department = 'restaurant' | 'bar' | 'breakfast' | 'housekeeping';
+export type Department = 'restaurant' | 'bar' | 'breakfast' | 'housekeeping' | 'technical';
 
 export interface Product {
   id: string;
@@ -129,6 +129,8 @@ export interface TenantData {
   housekeepingBOM: HousekeepingBOMItem[];
   rooms: Room[];
   housekeepingLogs: HousekeepingLog[];
+  technicalBOM: TechnicalBOMItem[];
+  technicalLogs: TechnicalLog[];
   directConsumptions: DirectConsumption[];
 }
 
@@ -157,6 +159,21 @@ export interface HousekeepingLog {
   guestCount: number;
 }
 
+// ====== TECHNICAL ======
+
+export interface TechnicalBOMItem {
+  productId: string;
+  quantity: number;
+}
+
+export interface TechnicalLog {
+  id: string;
+  date: string;
+  taskId: string;
+  taskName: string;
+  quantity: number;
+}
+
 // ====== DIRECT CONSUMPTION (for inventory tracking) ======
 
 export interface DirectConsumption {
@@ -164,7 +181,7 @@ export interface DirectConsumption {
   date: string;
   productId: string;
   quantity: number;
-  source: 'breakfast' | 'housekeeping' | 'manual';
+  source: 'breakfast' | 'housekeeping' | 'technical' | 'manual';
   reference?: string;
   department?: Department;
 }
